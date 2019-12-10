@@ -419,6 +419,10 @@ class RegionModelv5(nn.Module):
             'outputs':outputs
         }
 
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
 
 class NaiveLR(nn.Module):
     """
