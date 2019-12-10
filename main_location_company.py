@@ -533,7 +533,7 @@ def predict(
         else:
             sample_pd = res_pd.groupby('duns_number').apply(
                 lambda x: x.nlargest(topk, ['similarity'])).reset_index(drop=True)
-        sample_pd.to_csv('sampled_' + pre_name + save_name )
+        sample_pd.to_csv(TR_DATA_ROOT,('sampled_' + pre_name + save_name ))
     print('saving total data...')
 
     roc_auc = 0
