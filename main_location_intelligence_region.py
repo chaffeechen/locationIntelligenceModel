@@ -130,7 +130,7 @@ def main():
                         name='predict', shuffle=False) -> DataLoader:
             return DataLoader(
                 TestDatasetLocationRSRB(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
-                                        df_region_feat=df_region_feat, df_pair=df_pair, citynum=args.citynum,
+                                        df_region_feat=df_region_feat, df_pair=df_pair,
                                         testStep=testStep),
                 shuffle=shuffle,
                 batch_size=args.batch_size,

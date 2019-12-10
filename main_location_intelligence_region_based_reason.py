@@ -70,6 +70,7 @@ def main():
     arg('--query_location',action='store_true',help='use location as query')
     arg('--apps',type=str,default='_191114.csv')
     arg('--pre_name', type=str, default='sampled_ww_')
+    arg('--citynum', type=int, default=5)
 
 
 
@@ -106,7 +107,7 @@ def main():
                     name='predict', shuffle=False) -> DataLoader:
         return DataLoader(
             TestDatasetLocationRSRB(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
-                                    df_region_feat=df_region_feat, df_pair=df_pair, citynum=args.citynum,
+                                    df_region_feat=df_region_feat, df_pair=df_pair,
                                     testStep=testStep),
             shuffle=shuffle,
             batch_size=args.batch_size,

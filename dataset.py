@@ -463,15 +463,13 @@ class TestDatasetLocationRSRB(Dataset):
     def __init__(self, df_comp_feat: pd.DataFrame,
                  df_loc_feat: pd.DataFrame,
                  df_region_feat:pd.DataFrame,
-                 df_pair: pd.DataFrame,
-                 citynum=5, testStep=500000):
+                 df_pair: pd.DataFrame, testStep=500000):
         super().__init__()
         self._df_comp_feat = df_comp_feat.fillna(0)
         self._df_loc_feat = df_loc_feat.fillna(0)
         self._df_region_feat = df_region_feat.fillna(0)
         self._df_pair = df_pair.reset_index()
         self._step = testStep
-        self._citynum = citynum
         self.cldat = []
         self.locname = []
 
