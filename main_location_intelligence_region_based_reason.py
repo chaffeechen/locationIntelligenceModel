@@ -89,7 +89,10 @@ def main():
     df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT,'location_feat'+args.apps),index_col=0)
     df_region_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat_emb_' + args.model + '.csv'), index_col=0)
 
-    feat_name = list(df_comp_feat.columns)[1:]+list(df_loc_feat.columns)[1:]
+    not_cols = ['duns_number', 'atlas_location_uuid', 'label', 'city']
+
+    feat_name = [ c for c in df_comp_feat.columns if c not in not_cols ] + [ c for c in df_loc_feat.columns if c not in not_cols ]
+    # print(feat_name)
     print(len(feat_name))
 
     clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
