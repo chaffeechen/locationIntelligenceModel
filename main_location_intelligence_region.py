@@ -75,6 +75,7 @@ def main():
     arg('--testStep', type=int, default=50000)
     arg('--trainStep', type=int, default=10000)
     arg('--citynum', type=int, default=5)
+    arg('--query_location',action='store_true',help='use location as query')
     arg('--apps', type=str, default='_191114.csv')
 
     # cuda version T/F
@@ -125,12 +126,12 @@ def main():
         """
         df_region_feat = pd.read_csv(pjoin(TR_DATA_ROOT,'location_feat_emb_'+args.model+'.csv'),index_col=0)
         def make_loader(df_comp_feat: pd.DataFrame, df_loc_feat: pd.DataFrame, df_region_feat: pd.DataFrame,
-                        df_pair: pd.DataFrame, trainStep=10000,
+                        df_pair: pd.DataFrame, testStep=500000,
                         name='predict', shuffle=False) -> DataLoader:
             return DataLoader(
                 TestDatasetLocationRSRB(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
                                         df_region_feat=df_region_feat, df_pair=df_pair, citynum=args.citynum,
-                                        trainStep=trainStep),
+                                        testStep=testStep),
                 shuffle=shuffle,
                 batch_size=args.batch_size,
                 num_workers=args.workers,
@@ -249,10 +250,10 @@ def main():
             else:
                 topk = min(3, tot_loc)
 
-            predict(model, criterion, tqdm.tqdm(predict_loader, desc='Prediction'),
+            predict(args = args, model = model, criterion = criterion, predict_loader = tqdm.tqdm(predict_loader, desc='Prediction'),
                     use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
                     pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], lossType=lossType, query_loc_flag=args.query_location,
+                    save_name=pred_save_name[ind_city], query_loc_flag=args.query_location,
                     topk=topk)
 
 

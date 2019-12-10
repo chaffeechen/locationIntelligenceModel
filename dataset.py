@@ -515,6 +515,7 @@ class TestDatasetLocationRSRB(Dataset):
         featComp = torch.FloatTensor(featA_comp)  # B,D
         featRegion = torch.FloatTensor(featA_region)
         featLoc = torch.FloatTensor(featA_loc)
+        targets = torch.LongTensor(datA[['label']].to_numpy().reshape(-1,1))
 
         N, featdim = featRegion.shape
 
@@ -525,6 +526,7 @@ class TestDatasetLocationRSRB(Dataset):
             "feat_comp": featComp,
             "feat_region": featRegion,
             "feat_loc": featLoc,
+            "targets": targets,
         }
 
 
@@ -537,15 +539,18 @@ def collate_TestDatasetLocationRSRB(batch):
     feat_comp = []
     feat_region = []
     feat_loc = []
+    targets = []
 
     for b in batch:
         feat_comp.append(b['feat_comp'])
-        feat_region.append(b['feat_comp_region'])
+        feat_region.append(b['feat_region'])
         feat_loc.append(b['feat_loc'])
+        targets.append(b['targets'])
 
     feat_comp = torch.cat(feat_comp, 0)
     feat_region = torch.cat(feat_region, 0)
     feat_loc = torch.cat(feat_loc, 0)
+    targets = torch.cat(targets,0)
     # print(feat_comp.shape,feat_loc.shape,labels.shape)
 
     assert (feat_comp.shape[0] == feat_region.shape[0]  and
@@ -555,6 +560,7 @@ def collate_TestDatasetLocationRSRB(batch):
         "feat_comp": feat_comp,
         "feat_region": feat_region,
         "feat_loc": feat_loc,
+        "targets": targets,
     }
 
 # =======================================================================================================================
