@@ -129,7 +129,7 @@ def main():
 
 
     loc_dat = pd.concat([locName, feat_dat], axis=1)
-    loc_dat.to_csv(pjoin(TR_DATA_ROOT,'location_feat_emb_'+args.model+'.csv'))
+    loc_dat.to_csv(pjoin(datapath,'location_feat_emb_'+args.model+'.csv'))
 
 
 
