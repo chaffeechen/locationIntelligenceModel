@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch
-from models.lovasz import *
+# from models.lovasz import *
 
 import numpy as np
 
@@ -225,7 +225,7 @@ class FocalLoss_BCE(nn.Module):
             input = input.view(input.size(0), input.size(1), -1)
             input = input.transpose(1, 2)    # N,C,H*W => N,H*W,C
             input = input.contiguous().view(-1, input.size(2))   # N,H*W,C => N*H*W,C
-        if targetsFlag:#discrete-->contineous
+        if self.targetsFlag:#discrete-->contineous
             y = idx_2_one_hot(target, self._nCls, use_cuda = True)
         else:
             y = target.view(-1)#<-> pt.view(-1) and BCE is point-wise
@@ -271,21 +271,21 @@ def weights_init_classifier(m):
             nn.init.constant_(m.bias, 0.0)
 
 
-def try_bestfitting_loss(results, labels, selected_num=10):
-    batch_size, class_num = results.shape
-    labels = labels.view(-1, 1)
-    one_hot_target = torch.zeros(
-        batch_size, class_num + 1).cuda().scatter_(1, labels, 1)[:, :5004].contiguous()
-    error_loss = lovasz_hinge(results, one_hot_target)
-    labels = labels.view(-1)
-    indexs_new = (labels != 5004).nonzero().view(-1)
-    if len(indexs_new) == 0:
-        return error_loss
-    results_nonew = results[torch.arange(0, len(results))[
-        indexs_new], labels[indexs_new]].contiguous()
-    target_nonew = torch.ones_like(results_nonew).float().cuda()
-    nonew_loss = nn.BCEWithLogitsLoss(reduce=True)(results_nonew, target_nonew)
-    return nonew_loss + error_loss
+# def try_bestfitting_loss(results, labels, selected_num=10):
+#     batch_size, class_num = results.shape
+#     labels = labels.view(-1, 1)
+#     one_hot_target = torch.zeros(
+#         batch_size, class_num + 1).cuda().scatter_(1, labels, 1)[:, :5004].contiguous()
+#     error_loss = lovasz_hinge(results, one_hot_target)
+#     labels = labels.view(-1)
+#     indexs_new = (labels != 5004).nonzero().view(-1)
+#     if len(indexs_new) == 0:
+#         return error_loss
+#     results_nonew = results[torch.arange(0, len(results))[
+#         indexs_new], labels[indexs_new]].contiguous()
+#     target_nonew = torch.ones_like(results_nonew).float().cuda()
+#     nonew_loss = nn.BCEWithLogitsLoss(reduce=True)(results_nonew, target_nonew)
+#     return nonew_loss + error_loss
 
 
 def sigmoid_loss(results, labels, topk=10):
@@ -314,4 +314,4 @@ def sigmoid_loss(results, labels, topk=10):
 if __name__ == '__main__':
     results = torch.randn((4, 5004)).cuda()
     targets = torch.from_numpy(np.array([1, 2, 3, 5004])).cuda()
-    print(try_bestfitting_loss(results, targets))
+    # print(try_bestfitting_loss(results, targets))
