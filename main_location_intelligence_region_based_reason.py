@@ -190,7 +190,7 @@ def predict_with_reason(
         featComp = batch_dat['feat_comp']
         featLoc = batch_dat['feat_loc']
         featRegion = batch_dat['feat_region']
-        targets = batch_dat['target']
+        targets = batch_dat['targets']
 
         if use_cuda:
             featComp, featLoc, targets, featRegion = featComp.cuda(), featLoc.cuda(), targets.cuda(), featRegion.cuda()
