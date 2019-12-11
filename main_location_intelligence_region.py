@@ -228,6 +228,8 @@ def main():
             testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
                                     suffixes=['_left', '_right']).reset_index(drop=True)
 
+            print('testing pairs: %d, location number:%d, company number:%d'% (len(testing_pair), len(all_loc_name), len(pdc)))
+
             testing_pair = testing_pair.rename(
                 columns={'atlas_location_uuid_left': 'groundtruth', 'atlas_location_uuid_right': 'atlas_location_uuid'})
             testing_pair = testing_pair[['duns_number', 'atlas_location_uuid', 'groundtruth']]
