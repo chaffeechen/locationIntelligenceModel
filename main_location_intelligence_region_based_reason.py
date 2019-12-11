@@ -245,7 +245,7 @@ def _reduce_loss(loss):
 
 def softmax_loss(results, labels):
     labels = labels.view(-1)
-    loss = F.cross_entropy(results, labels, reduce=True)
+    loss = F.cross_entropy(results, labels, reduction='mean')
 
     return loss
 
@@ -256,7 +256,7 @@ def softmax_lossV2(results,labels):
     label_len = softmax_label.shape[0]
     softmax_results = results[:label_len,:]
     assert(label_len%2==0)
-    loss = F.cross_entropy(softmax_results,softmax_label,reduce=True)
+    loss = F.cross_entropy(softmax_results,softmax_label,reduction='mean')
 
     return loss
 
