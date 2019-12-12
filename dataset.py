@@ -197,7 +197,7 @@ class TrainDatasetLocationRSRB(Dataset):
         self._name = name
         self._step = testStep
         self._citynum = citynum
-        self._maxK = 50
+        self._maxK = 100
         self._traintimes = trainStep
         self.cldat = []
         self.locname = []
