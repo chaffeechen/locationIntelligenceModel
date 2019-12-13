@@ -506,7 +506,7 @@ def validation(
     metrics['auc'] = roc_auc
     metrics['valid_top5'] = 0  # acc[1].item()
 
-    print(' | '.join(f'{k} {v:.3f}' for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])))
+    print(' | '.join( ['%s %1.3f'%(k,v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
 
     return metrics
 
@@ -574,7 +574,7 @@ def predict(
     metrics['auc'] = roc_auc
     metrics['valid_top5'] = 0  # acc[1].item()
 
-    print(' | '.join(f'{k} {v:.3f}' for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])))
+    print(' | '.join(['%s %1.3f'%(k,v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
 
     return metrics
 

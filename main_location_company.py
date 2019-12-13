@@ -545,7 +545,7 @@ def predict(
     metrics['auc'] = roc_auc
     metrics['valid_top5'] = 0 #acc[1].item()
 
-    print(' | '.join(f'{k} {v:.3f}' for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])))
+    print(' | '.join(['%s %1.3f'%(k,v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
 
     return metrics
 
@@ -667,7 +667,7 @@ def train(args, model: nn.Module, criterion, *, params,
                 tq.update(batch_size)
                 losses.append(loss.item())
                 mean_loss = np.mean(losses[-report_each:])
-                tq.set_postfix(loss=f'{mean_loss:.3f}')
+                tq.set_postfix(loss='%1.3f'%mean_loss)
 
                 if i and i % report_each == 0:
                     write_event(log, step, loss=mean_loss)
@@ -812,7 +812,7 @@ def validation(
     metrics['auc'] = roc_auc
     metrics['valid_top5'] = 0 #acc[1].item()
 
-    print(' | '.join(f'{k} {v:.3f}' for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])))
+    print(' | '.join(['%s %1.3f'%(k,v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
 
     return metrics
 
