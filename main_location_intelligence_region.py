@@ -352,7 +352,7 @@ def train(args, model: nn.Module, criterion, *, params,
                 idx = (negDiff < 1e-3).sum(dim=1) #[2B,K]-> [2B]
                 idx = (idx == 0)
                 featRegion2 = featRegion2[idx,:,:]
-                featCompNeg2 = featCompNeg[idx,:,:]
+                featCompNeg2 = featCompNeg[idx,:]
                 featLoc2 = featLoc.repeat_interleave(repeats=2,dim=0)
                 featLoc2 = featLoc2[idx,:]
 
@@ -382,6 +382,7 @@ def train(args, model: nn.Module, criterion, *, params,
                 lossP = softmax_loss(model_output_pos['outputs'], target_pos)
                 lossN = softmax_loss(model_output_neg['outputs'], target_neg)
                 loss = (nN/(nP+nN))*lossP + 0.9 *(nP/(nP+nN))*lossN
+                pos_neg_ratio = (1.0*nP)/nN
 
                 if args.model in ['location_recommend_region_model_v4', 'location_recommend_region_model_v5']:
                     lW = 0.1
@@ -400,7 +401,7 @@ def train(args, model: nn.Module, criterion, *, params,
                 tq.update(1 * args.batch_size)
                 losses.append(loss.item())
                 mean_loss = np.mean(losses[-report_each:])
-                tq.set_postfix(loss=f'{mean_loss:.3f}')
+                tq.set_postfix(loss='%1.3f, P/N ratio %1.3f'% (mean_loss,pos_neg_ratio))
 
                 if i and i % report_each == 0:
                     write_event(log, step, loss=mean_loss)
