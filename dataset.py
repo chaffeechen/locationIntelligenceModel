@@ -298,8 +298,8 @@ class TrainDatasetLocationRSRB(Dataset):
             # featB = tbB.merge(self._df_comp_feat,on='duns_number',how='left',suffixes=['','_right'])[list_col]
             # featC = tbC.merge(self._df_comp_feat,on='duns_number',how='left',suffixes=['','_right'])[list_col]
         elif self._name == 'train_fast':
-            num_building_batch = 20
-            num_pos = 50  # each building
+            num_building_batch = 20 # select num_building_batch buildings for each batch
+            num_pos = 50  # for each building in the batch select num_pos companies as positive samples
             num_region = self._maxK
 
             data_batch = num_pos + num_pos * num_region
@@ -320,7 +320,7 @@ class TrainDatasetLocationRSRB(Dataset):
                 ['duns_number', 'atlas_location_uuid']]
             tc.eclapse()
 
-            tc.start(it='create tbA and tbB')
+            tc.start(it='create tbA:pos company and tbB:companies inside region')
             tbABGrp = tbAB.groupby('atlas_location_uuid')
             tbA = tbABGrp.head(num_pos).reset_index(drop=True)
 
@@ -330,15 +330,22 @@ class TrainDatasetLocationRSRB(Dataset):
             assert (len(tbA) == num_pos_pair)
 
             tc.start(it='get location neg pairs')
-            smp_loc_name_pair = \
+            smp_loc_name_pair1 = \
                 pd.concat([smp_loc_name,
-                           smp_loc_name.sample(frac=1, replace=True).reset_index(drop=True) \
+                           smp_loc_name.sample(frac=1, replace=False).reset_index(drop=True) \
                           .rename(columns={'atlas_location_uuid': 'atlas_location_uuid_neg'})], axis=1)
+
+            smp_loc_name_pair2 = \
+                pd.concat([smp_loc_name,
+                           smp_loc_name.sample(frac=1, replace=False).reset_index(drop=True) \
+                          .rename(columns={'atlas_location_uuid': 'atlas_location_uuid_neg'})], axis=1)
+
+            smp_loc_name_pair = pd.concat([smp_loc_name_pair1,smp_loc_name_pair2],axis=1)
 
             tbC = \
             smp_loc_name_pair.merge(tbA, left_on='atlas_location_uuid_neg', right_on='atlas_location_uuid', how='inner',
                                     suffixes=['', '_useless'])[
-                ['duns_number', 'atlas_location_uuid', 'atlas_location_uuid_neg']].reset_index(drop=True)
+                ['duns_number', 'atlas_location_uuid']].reset_index(drop=True)
             tc.eclapse()
 
             tc.start('sort')
@@ -353,19 +360,19 @@ class TrainDatasetLocationRSRB(Dataset):
             tc.start('merge')
             tbACB = pd.concat([tbA, tbC, tbB], axis=0, sort=False).reset_index(drop=True)
             featACB_comp = \
-            tbACB.merge(self.df_comp_feat_city[ind_city], on='duns_number', how='left', suffixes=['', '_right'])[
+            tbACB.merge(self.df_comp_feat_city[ind_city], on='duns_number', how='left', suffixes=sfx)[
                 list_col]
 
             featA = featACB_comp.loc[:num_pos_pair - 1]
-            featC = featACB_comp.loc[num_pos_pair:2 * num_pos_pair - 1]
-            featB = featACB_comp.loc[2 * num_pos_pair:]
+            featC = featACB_comp.loc[num_pos_pair:3 * num_pos_pair - 1]
+            featB = featACB_comp.loc[3 * num_pos_pair:]
 
             assert (len(featC) == len(featA))
 
             list_col = list(self._df_loc_feat.columns)
             list_col = [col for col in list_col if col not in self._not_cols]
             # tbA and tbB share the same location, thus tbA is used.
-            featB_loc = tbA.merge(self._df_loc_feat, on='atlas_location_uuid', how='left', suffixes=['', '_right'])[
+            featB_loc = tbA.merge(self._df_loc_feat, on='atlas_location_uuid', how='left', suffixes=sfx)[
                 list_col]
             tc.eclapse()
 

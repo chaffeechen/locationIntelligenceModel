@@ -336,24 +336,36 @@ def train(args, model: nn.Module, criterion, *, params,
             mean_loss = 0
 
             for i, batch_dat in enumerate(tl):  # enumerate() turns tl into index, ele_of_tl
-                featCompPos = batch_dat['feat_comp_pos']
-                featCompNeg = batch_dat['feat_comp_neg']
+                featCompPos = batch_dat['feat_comp_pos']#[B,D]
+                featCompNeg = batch_dat['feat_comp_neg']#[2B,D]
                 featRegion = batch_dat['feat_comp_region']
                 featLoc = batch_dat['feat_loc']
+
+                assert(featCompNeg.shape[0]==2*featCompPos.shape[0])
 
                 if use_cuda:
                     featCompPos, featCompNeg, featRegion, featLoc = featCompPos.cuda(), featCompNeg.cuda(), featRegion.cuda(), featLoc.cuda()
 
+                #Neg filter
+                featRegion2 = featRegion.repeat_interleave(repeats=2,dim=0)#[B,K,D]->[2B,K,D] 1,2->1,1,2,2 not 1,2,1,2
+                negDiff = torch.norm(featCompNeg.unsqueeze(1)-featRegion2,p='fro',dim=2)#[2B,K,D]->[2B,K]
+                idx = (negDiff < 1e-3).sum(dim=1) #[2B,K]-> [2B]
+                idx = (idx == 0)
+                featRegion2 = featRegion2[idx,:,:]
+                featCompNeg2 = featCompNeg[idx,:,:]
+                featLoc2 = featLoc.repeat_interleave(repeats=2,dim=0)
+                featLoc2 = featLoc2[idx,:]
+
                 # common_feat_comp, common_feat_loc, feat_comp_loc, outputs = model(feat_comp=featComp, feat_loc=featLoc)
                 if args.model == 'location_recommend_region_model_v1':
                     model_output_pos = model(feat_comp=featCompPos, feat_K_comp=featRegion)
-                    model_output_neg = model(feat_comp=featCompNeg, feat_K_comp=featRegion)
+                    model_output_neg = model(feat_comp=featCompNeg2, feat_K_comp=featRegion2)
                 elif args.model == 'location_recommend_region_model_v0':
                     model_output_pos = model(feat_comp=featCompPos, feat_loc=featLoc)
-                    model_output_neg = model(feat_comp=featCompNeg, feat_loc=featLoc)
+                    model_output_neg = model(feat_comp=featCompNeg2, feat_loc=featLoc2)
                 else:
                     model_output_pos = model(feat_comp=featCompPos, feat_K_comp=featRegion, feat_loc=featLoc)
-                    model_output_neg = model(feat_comp=featCompNeg, feat_K_comp=featRegion, feat_loc=featLoc)
+                    model_output_neg = model(feat_comp=featCompNeg2, feat_K_comp=featRegion2, feat_loc=featLoc2)
 
                 # outputs = torch.cat( [ model_output_pos['outputs'], model_output_neg['outputs'] ], dim = 0)
 
@@ -369,7 +381,7 @@ def train(args, model: nn.Module, criterion, *, params,
 
                 lossP = softmax_loss(model_output_pos['outputs'], target_pos)
                 lossN = softmax_loss(model_output_neg['outputs'], target_neg)
-                loss = lossP + 0.8 * lossN
+                loss = (nN/(nP+nN))*lossP + 0.9 *(nP/(nP+nN))*lossN
 
                 if args.model in ['location_recommend_region_model_v4', 'location_recommend_region_model_v5']:
                     lW = 0.1
