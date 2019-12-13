@@ -455,8 +455,8 @@ def collate_TrainDatasetLocationRSRB(batch):
     feat_comp_region = torch.cat(feat_comp_region, 0)
     feat_loc = torch.cat(feat_loc, 0)
     # print(feat_comp.shape,feat_loc.shape,labels.shape)
-
-    assert (2*feat_comp_pos.shape[0] == feat_comp_neg.shape[0] and feat_comp_region.shape[0] == feat_comp_pos.shape[0] and
+    # 2 * feat_comp_pos.shape[0] == feat_comp_neg.shape[0] train true test wrong
+    assert (feat_comp_region.shape[0] == feat_comp_pos.shape[0] and
             feat_loc.shape[0] == feat_comp_pos.shape[0])
 
     return {

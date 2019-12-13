@@ -381,7 +381,7 @@ def train(args, model: nn.Module, criterion, *, params,
 
                 lossP = softmax_loss(model_output_pos['outputs'], target_pos)
                 lossN = softmax_loss(model_output_neg['outputs'], target_neg)
-                loss = (nN/(nP+nN))*lossP + 0.9 *(nP/(nP+nN))*lossN
+                loss = ((1.0*nN)/(nP+nN))*lossP + 0.9 *((1.0*nP)/(nP+nN))*lossN
                 pos_neg_ratio = (1.0*nP)/nN
 
                 if args.model in ['location_recommend_region_model_v4', 'location_recommend_region_model_v5']:
