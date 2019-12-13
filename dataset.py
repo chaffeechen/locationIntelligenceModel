@@ -340,7 +340,7 @@ class TrainDatasetLocationRSRB(Dataset):
                            smp_loc_name.sample(frac=1, replace=False).reset_index(drop=True) \
                           .rename(columns={'atlas_location_uuid': 'atlas_location_uuid_neg'})], axis=1)
 
-            smp_loc_name_pair = pd.concat([smp_loc_name_pair1,smp_loc_name_pair2],axis=1)
+            smp_loc_name_pair = pd.concat([smp_loc_name_pair1,smp_loc_name_pair2],axis=0)
 
             tbC = \
             smp_loc_name_pair.merge(tbA, left_on='atlas_location_uuid_neg', right_on='atlas_location_uuid', how='inner',
@@ -367,7 +367,7 @@ class TrainDatasetLocationRSRB(Dataset):
             featC = featACB_comp.loc[num_pos_pair:3 * num_pos_pair - 1]
             featB = featACB_comp.loc[3 * num_pos_pair:]
 
-            assert (len(featC) == len(featA))
+            assert (len(featC) == 2*len(featA))
 
             list_col = list(self._df_loc_feat.columns)
             list_col = [col for col in list_col if col not in self._not_cols]
