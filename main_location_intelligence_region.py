@@ -356,7 +356,7 @@ def train(args, model: nn.Module, criterion, *, params,
                 featLoc2 = featLoc.repeat_interleave(repeats=2,dim=0)
                 featLoc2 = featLoc2[idx,:]
 
-                disturbance = 0.02
+                disturbance = 0.01
                 featCompPos = (torch.randn_like(featCompPos) * disturbance + 1) * featCompPos
                 featCompNeg2 = (torch.randn_like(featCompNeg2) * disturbance + 1) * featCompNeg2
                 featRegion = (torch.randn_like(featRegion) * disturbance + 1) * featRegion
