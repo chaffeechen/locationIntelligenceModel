@@ -322,7 +322,7 @@ def train(args, model: nn.Module, criterion, *, params,
         tq = tqdm.tqdm(total=(args.epoch_size or
                               len(train_loader) * args.batch_size))
 
-        if epoch >= 20 and epoch % 2 == 0:
+        if epoch >= 20 and epoch % 4 == 0:
             lr = lr * 0.9
             adjust_learning_rate(optimizer, lr)
             print('lr updated to %0.8f' % lr)
