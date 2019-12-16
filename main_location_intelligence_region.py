@@ -356,6 +356,11 @@ def train(args, model: nn.Module, criterion, *, params,
                 featLoc2 = featLoc.repeat_interleave(repeats=2,dim=0)
                 featLoc2 = featLoc2[idx,:]
 
+                disturbance = 0.02
+                featCompPos = (torch.randn_like(featCompPos) * disturbance + 1) * featCompPos
+                featCompNeg2 = (torch.randn_like(featCompNeg2) * disturbance + 1) * featCompNeg2
+                featRegion = (torch.randn_like(featRegion) * disturbance + 1) * featRegion
+
                 # common_feat_comp, common_feat_loc, feat_comp_loc, outputs = model(feat_comp=featComp, feat_loc=featLoc)
                 if args.model == 'location_recommend_region_model_v1':
                     model_output_pos = model(feat_comp=featCompPos, feat_K_comp=featRegion)
