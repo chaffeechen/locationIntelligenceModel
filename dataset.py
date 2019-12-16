@@ -425,11 +425,12 @@ class TrainDatasetLocationRSRB(Dataset):
         featCompNeg = torch.FloatTensor(featC)  # B,D
         tc.eclapse()
 
-        disturbance = 0.02
-        featCompPos = (torch.randn_like(featCompPos)*disturbance + 1)*featCompPos
-        featCompNeg = (torch.randn_like(featCompNeg) * disturbance + 1) * featCompNeg
-        featRegion = (torch.randn_like(featRegion) * disturbance + 1) * featRegion
-        # featLoc = (torch.randn_like(featLoc) * disturbance + 1) * featLoc
+        if self._name in ['train_fast','train']:
+            disturbance = 0.02
+            featCompPos = (torch.randn_like(featCompPos)*disturbance + 1)*featCompPos
+            featCompNeg = (torch.randn_like(featCompNeg) * disturbance + 1) * featCompNeg
+            featRegion = (torch.randn_like(featRegion) * disturbance + 1) * featRegion
+            # featLoc = (torch.randn_like(featLoc) * disturbance + 1) * featLoc
 
         return {
             "feat_comp_pos": featCompPos,
