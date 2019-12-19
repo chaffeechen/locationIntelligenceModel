@@ -248,7 +248,7 @@ def main():
                 pre_name = ''
 
             if args.query_location:
-                topk = min(300, tot_comp)
+                topk = min(50, tot_comp)
             else:
                 topk = min(3, tot_loc)
 
