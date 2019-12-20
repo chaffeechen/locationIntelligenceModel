@@ -77,6 +77,7 @@ def main():
     arg('--citynum', type=int, default=5)
     arg('--query_location',action='store_true',help='use location as query')
     arg('--apps', type=str, default='_191114.csv')
+    arg('--all',action='store_true',help='return all the prediction')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -252,10 +253,11 @@ def main():
             else:
                 topk = min(3, tot_loc)
 
+            sampling = True if not args.all else False
             predict(args = args, model = model, criterion = criterion, predict_loader = tqdm.tqdm(predict_loader, desc='Prediction'),
                     use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
                     pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], query_loc_flag=args.query_location,
+                    save_name=pred_save_name[ind_city], query_loc_flag=args.query_location,sampling=sampling,
                     topk=topk)
 
 
@@ -568,7 +570,9 @@ def predict(
             sample_pd = res_pd.groupby('duns_number').apply(
                 lambda x: x.nlargest(topk, ['similarity'])).reset_index(drop=True)
         sample_pd.to_csv(pjoin(TR_DATA_ROOT,'sampled_' + pre_name + save_name))
-    print('saving total data...')
+    else:
+        print('saving total data...')
+        res_pd.to_csv(pjoin(TR_DATA_ROOT,'all_' + pre_name + save_name))
 
     roc_auc = 0
 
