@@ -307,6 +307,12 @@ def translocname2dict(loc_feat:pd.DataFrame)->dict:
     loc_name_dicts = dict(k)
     return loc_name_dicts
 
+def translocname2dict_general(loc_feat:pd.DataFrame,colname:str='atlas_location_uuid')->dict:
+    loc_name_dict = loc_feat[[colname]].groupby(colname).first().reset_index()
+    k = zip(loc_name_dict[colname].values.tolist(), list(range(len(loc_name_dict))))
+    loc_name_dicts = dict(k)
+    return loc_name_dicts
+
 
 def generate_loc_type(comp_feat, comp_loc, matching_col):
     # matching_col = 'major_industry_category'

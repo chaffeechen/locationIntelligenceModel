@@ -78,6 +78,7 @@ def main():
     arg('--query_location',action='store_true',help='use location as query')
     arg('--apps', type=str, default='_191114.csv')
     arg('--all',action='store_true',help='return all the prediction')
+    arg('--lscard',default='location_scorecard_191113.csv')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -104,7 +105,7 @@ def main():
     cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
 
     cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    lfile = 'location_scorecard_191113.csv'
+    lfile = args.lscard #'location_scorecard_191113.csv'
 
     clfile = [c + args.apps for c in citynameabbr]
     pred_save_name = [c + '_similarity' + args.apps for c in citynameabbr]

@@ -71,6 +71,7 @@ def main():
     arg('--apps',type=str,default='_191114.csv')
     arg('--pre_name', type=str, default='sampled_ww_')
     arg('--citynum', type=int, default=5)
+    # arg('--lscard', default='location_scorecard_191113.csv')
 
 
 
@@ -97,7 +98,7 @@ def main():
 
     clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
     cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    lfile = 'location_scorecard_191113.csv'
+    # lfile = args.lscard #'location_scorecard_191113.csv'
 
     clfile = [c + args.apps for c in clfile]
     pre_name = args.pre_name
