@@ -209,7 +209,7 @@ def main():
             pdc = pdc_all.loc[pdc_all['city'] == str_city]
             tot_comp = len(pdc)
             print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
-            pdc.loc[:,['atlas_location_uuid']] = 'a'
+            pdc['atlas_location_uuid'] = 'a'
             # in case of multi-mapping
             all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
                 ['atlas_location_uuid']].first().reset_index(drop=True)
