@@ -206,17 +206,19 @@ def main():
         pdc_all = pd.read_csv(pjoin(TR_DATA_ROOT, c_salesforce_file))[['duns_number', 'city']]
         for ind_city, str_city in enumerate(cityname):
             pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
-            pdc = pdc_all[pdc_all['city'] == str_city]
+            pdc = pdc_all.loc[pdc_all['city'] == str_city]
             tot_comp = len(pdc)
             print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
             pdc['atlas_location_uuid'] = 'a'
             # in case of multi-mapping
             all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
                 ['atlas_location_uuid']].first().reset_index(drop=True)
+            print('Total %d locations have companies inside.'%len(all_loc_name))
 
             if wework_location_only:
                 loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[['atlas_location_uuid', 'is_wework']]
-                loc_ww = loc_feat[loc_feat['is_wework'] == True]
+                loc_ww = loc_feat.loc[loc_feat['is_wework'] == True]
+                print('Total %d locations inside ls card belonged to ww.'%len(loc_ww))
                 all_loc_name = \
                     all_loc_name.merge(loc_ww, on='atlas_location_uuid', how='inner', suffixes=['', '_right'])[
                         ['atlas_location_uuid']]
