@@ -20,10 +20,9 @@ from torch import nn, cuda
 from torch.optim import Adam, SGD
 import tqdm
 import models.location_recommendation as rsmodels
-from dataset import TrainDatasetLocationRS, collate_TrainDatasetLocationRS
+from dataset import TrainDatasetLocationRS_salesforce, collate_TrainDatasetLocationRS_salesforce
 from sklearn.metrics import precision_recall_curve, roc_curve, auc
-from utils import (write_event, load_model, ThreadingDataLoader as DataLoader, adjust_learning_rate,
-                   ON_KAGGLE)
+from utils import (write_event, load_model, ThreadingDataLoader as DataLoader, adjust_learning_rate)
 
 from models.utils import *
 from udf.basic import save_obj, load_obj, calc_topk_acc_cat_all, topk_recall_score_all
@@ -47,6 +46,13 @@ colname = {
     'company':'duns_number',
 }
 
+comp_feat_file_prename = 'salesforce_company_feat'
+loc_feat_file_prename = 'salesforce_location_feat'
+train_valid_file_prename = 'train_val_test_location_company_82split'
+salesforce_acc_city_prename = 'salesforce_acc_city'
+salesforce_city_atlas_prename = 'salesforce_city_atlas'
+
+
 
 # =============================================================================================================================
 # main
@@ -57,11 +63,9 @@ def main():
     arg = parser.add_argument
     arg('--mode', choices=['train', 'validate', 'predict_valid', 'predict_test',
                            'predict_salesforce'], default='train')
-    arg('--run_root', default='result/location_company')
-    arg('--fold', type=int, default=0)
+    arg('--run_root', default='result/salesforce_location_company')
     arg('--model', default='location_recommend_model_v3')
     arg('--ckpt', type=str, default='model_loss_best.pt')
-    arg('--pretrained', type=str, default='imagenet')  # resnet 1, resnext imagenet
     arg('--batch-size', type=int, default=1)
     arg('--step', type=str, default=8)  # update the gradients every 8 batch(sample num = step*batch-size*inner_size)
     arg('--workers', type=int, default=16)
@@ -70,16 +74,14 @@ def main():
     arg('--clean', action='store_true')
     arg('--n-epochs', type=int, default=80)
     arg('--epoch-size', type=int)
-    arg('--use-sample', action='store_true', help='use a sample of the dataset')
-    arg('--debug', action='store_true')
-    arg('--imgsize', type=int, default=256)
-    arg('--finetuning', action='store_true')
     arg('--cos_sim_loss', action='store_true')
     arg('--sample_rate', type=float, default=1.0)  # sample part of testing data for evaluating during training
     arg('--testStep', type=int, default=500000)
     arg('--query_location', action='store_true', help='use location as query')
     arg('--apps', type=str, default='_191114.csv')
     arg('--all', action='store_true', help='return all the prediction')
+    arg('--data_root',default='/home/ubuntu/location_recommender_system/')
+    arg('--ls_card',default='location_scorecard_200106.csv')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -87,25 +89,32 @@ def main():
     args = parser.parse_args()
     # run_root: model/weights root
     run_root = Path(args.run_root)
+    global TR_DATA_ROOT,TT_DATA_ROOT
+    TR_DATA_ROOT = args.data_root
+    TT_DATA_ROOT = args.data_root
+
+    datapath = args.data_root
+    salesforce_path = pjoin(datapath,'salesforce')
 
     global model_name
     model_name = args.model
 
-    df_all_pair = pd.read_csv(pjoin(TR_DATA_ROOT, 'train_val_test_location_company_82split' + args.apps), index_col=0)
-    df_comp_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
-    df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
+    df_all_pair = pd.read_csv(pjoin(salesforce_path, train_valid_file_prename + args.apps), index_col=0)
+    df_comp_feat = pd.read_csv(pjoin(salesforce_path, comp_feat_file_prename + args.apps), index_col=0)
+    df_loc_feat = pd.read_csv(pjoin(salesforce_path, loc_feat_file_prename + args.apps), index_col=0)
 
-    clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
-    c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
-    cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    lfile = 'location_scorecard_191113.csv'
+    df_acc_city = pd.read_csv(pjoin(salesforce_path, salesforce_acc_city_prename + args.apps), index_col=0)
+    df_city_atlas = pd.read_csv(pjoin(salesforce_path, salesforce_city_atlas_prename + args.apps), index_col=0)
 
-    clfile = [c + args.apps for c in clfile]
-    pred_save_name = [c.replace(args.apps, '') + '_similarity' + args.apps for c in clfile]
+    # clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
+    # cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
+    # c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
+    # cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
+    # lfile = args.ls_card
 
+    # clfile = [c + args.apps for c in clfile]
+    # pred_save_name = [c.replace(args.apps, '') + '_similarity' + args.apps for c in clfile]
 
-    df_ensemble = pd.DataFrame(columns=['Blank'])
 
     # split train/valid fold
     df_train_pair = df_all_pair[df_all_pair['fold'] == 0]
@@ -124,18 +133,16 @@ def main():
     print('Location Embedding Number: %d' % len(loc_name_dict))
 
     ##::DataLoader
-    def make_loader(df_comp_feat: pd.DataFrame, df_loc_feat: pd.DataFrame, df_pair: pd.DataFrame, emb_dict: dict,
-                    df_ensemble,
-                    name='train', flag_ensemble=args.ensemble, testStep=args.testStep, shuffle=True) -> DataLoader:
+    def make_loader(df_pair: pd.DataFrame, name='train', testStep=args.testStep, shuffle=True) -> DataLoader:
         return DataLoader(
-            TrainDatasetLocationRS(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=df_pair,
-                                   df_ensemble_score=df_ensemble,
-                                   emb_dict=emb_dict, name=name, flag_ensemble=flag_ensemble,
+            TrainDatasetLocationRS_salesforce(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=df_pair,
+                                              df_city_atlas= df_acc_city,df_acc_city=df_city_atlas,
+                                   emb_dict=loc_name_dict, name=name,colname=colname,
                                    negN=nNegTr, posN=nPosTr, testStep=testStep),
             shuffle=shuffle,
             batch_size=args.batch_size,
             num_workers=args.workers,
-            collate_fn=collate_TrainDatasetLocationRS
+            collate_fn=collate_TrainDatasetLocationRS_salesforce
         )
 
     # Not used in this version
@@ -178,10 +185,8 @@ def main():
         Path(str(run_root) + '/params.json').write_text(
             json.dumps(vars(args), indent=4, sort_keys=True))
 
-        train_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=df_train_pair,
-                                   emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='train')
-        valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=df_valid_pair,
-                                   emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='valid')
+        train_loader = make_loader(df_pair=df_train_pair, name='train')
+        valid_loader = make_loader(df_pair=df_valid_pair, name='valid')
 
         train_kwargs = dict(
             args=args,
@@ -202,125 +207,114 @@ def main():
         Because topks recall can not be calculated.
         But if set topks = [0,0,0], roc_auc can be calculated.
         """
-        topks = [300, 1000, 600]
+        valid_loader = make_loader(df_pair=df_valid_pair, name='valid', shuffle=False)
+        validation(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
+                   use_cuda=use_cuda, lossType=lossType)
 
-        Query_Company = not args.query_location
-        for ind_city in range(3):
-            df_valid_pair_city = df_valid_pair[df_valid_pair['city'] == ind_city]
-            all_company_loc = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[[colname['location'], colname['company']]]
-            loc_name = all_company_loc[[colname['location']]].groupby(colname['location']).first().reset_index()
-            num_loc = len(loc_name)
-            valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=df_valid_pair_city,
-                                       emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='valid', shuffle=False)
-            print('Predictions for city %d' % ind_city)
-            validation(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
-                       use_cuda=use_cuda, lossType=lossType, num_loc=num_loc, topK=topks[ind_city],
-                       Query_Company=Query_Company)
-
-    elif args.mode == 'predict_test':
-        """
-        It will generate a score for each company with all the locations(including companies/locations in training set)
-        or locations of ww only
-        """
-        for ind_city in [0, 1, 2, 3, 4]:
-            pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[[colname['location'], colname['company']]]
-            pdc = pd.read_csv(pjoin(TR_DATA_ROOT, cfile[ind_city]))[[colname['company']]]
-            pdc[colname['location']] = 'a'
-            # in case of multi-mapping
-            # pdcl = pdcl.groupby('atlas_location_uuid').first().reset_index()
-            all_loc_name = pdcl[[colname['location']]].groupby(colname['location']).first().reset_index()
-
-            if wework_location_only:
-                loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[[colname['location'], 'is_wework']]
-                loc_ww = loc_feat[loc_feat['is_wework'] == True]
-                all_loc_name = \
-                all_loc_name.merge(loc_ww, on=colname['location'], how='inner', suffixes=['', '_right'])[[colname['location']]]
-
-            all_loc_name['key'] = 0
-            pdc['key'] = 0
-
-            testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
-                                    suffixes=['_left', '_right']).reset_index(drop=True)
-
-            testing_pair = testing_pair.rename(
-                columns={colname['location']+'_left': 'groundtruth', colname['location']+'_right': colname['location'] })
-            testing_pair = testing_pair[[colname['company'], colname['location'], 'groundtruth']]
-            testing_pair['label'] = (testing_pair[colname['location']] == testing_pair['groundtruth'])
-            testing_pair = testing_pair[[colname['company'], colname['location'] , 'label']]
-
-            valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=testing_pair,
-                                       emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='valid', shuffle=False)
-            print('Predictions for city %d' % ind_city)
-
-            if wework_location_only:
-                pre_name = 'ww_'
-            else:
-                pre_name = ''
-
-            sampling = True if not args.all else False
-            predict(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
-                    use_cuda=use_cuda, test_pair=testing_pair[[colname['location'], colname['company']]],
-                    pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], lossType=lossType,sampling=sampling)
-
-    elif args.mode == 'predict_salesforce':
-        """
-        It will generate a score for each company with all the locations(including companies/locations in training set)
-        or locations of ww only
-        """
-        pdc_all = pd.read_csv(pjoin(TR_DATA_ROOT, c_salesforce_file))[[colname['company'], 'city']]
-        for ind_city, str_city in enumerate(cityname):
-            pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[[colname['location'], colname['company']]]
-            pdc = pdc_all[pdc_all['city'] == str_city]
-            tot_comp = len(pdc)
-            print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
-            pdc[colname['location']] = 'a'
-            # in case of multi-mapping
-            # pdcl = pdcl.groupby('atlas_location_uuid').first().reset_index()
-            all_loc_name = pdcl[[colname['location']]].groupby(colname['location']).first().reset_index()
-
-            if wework_location_only:
-                loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[[colname['location'], 'is_wework']]
-                loc_ww = loc_feat[loc_feat['is_wework'] == True]
-                all_loc_name = \
-                    all_loc_name.merge(loc_ww, on=colname['location'], how='inner', suffixes=['', '_right'])[
-                        [colname['location']]]
-
-            tot_loc = len(all_loc_name)
-            print('Total %d locations belonged to ww in %s' % (tot_loc, str_city))
-
-            all_loc_name['key'] = 0
-            pdc['key'] = 0
-
-            testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
-                                    suffixes=['_left', '_right']).reset_index(drop=True)
-
-            testing_pair = testing_pair.rename(
-                columns={colname['location']+'_left': 'groundtruth', colname['location']+'_right': colname['location']})
-            testing_pair = testing_pair[[colname['company'], colname['location'], 'groundtruth']]
-            testing_pair['label'] = (testing_pair[colname['location']] == testing_pair['groundtruth'])
-            testing_pair = testing_pair[[colname['company'], colname['location'], 'label']]
-
-            valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=testing_pair,
-                                       emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='valid', shuffle=False)
-            print('Predictions for city %d' % ind_city)
-
-            if wework_location_only:
-                pre_name = 'ww_'
-            else:
-                pre_name = ''
-
-            if args.query_location:
-                topk = min(50, tot_comp)
-            else:
-                topk = min(3, tot_loc)
-
-            sampling = True if not args.all else False
-            predict(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
-                    use_cuda=use_cuda, test_pair=testing_pair[[colname['location'], colname['company']]],
-                    pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], lossType=lossType, query_loc_flag=args.query_location,
-                    topk=topk, sampling=sampling)
+    # elif args.mode == 'predict_test':
+    #     """
+    #     It will generate a score for each company with all the locations(including companies/locations in training set)
+    #     or locations of ww only
+    #     """
+    #     for ind_city in [0, 1, 2, 3, 4]:
+    #         pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[[colname['location'], colname['company']]]
+    #         pdc = pd.read_csv(pjoin(TR_DATA_ROOT, cfile[ind_city]))[[colname['company']]]
+    #         pdc[colname['location']] = 'a'
+    #         # in case of multi-mapping
+    #         # pdcl = pdcl.groupby('atlas_location_uuid').first().reset_index()
+    #         all_loc_name = pdcl[[colname['location']]].groupby(colname['location']).first().reset_index()
+    #
+    #         if wework_location_only:
+    #             loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[[colname['location'], 'is_wework']]
+    #             loc_ww = loc_feat[loc_feat['is_wework'] == True]
+    #             all_loc_name = \
+    #             all_loc_name.merge(loc_ww, on=colname['location'], how='inner', suffixes=['', '_right'])[[colname['location']]]
+    #
+    #         all_loc_name['key'] = 0
+    #         pdc['key'] = 0
+    #
+    #         testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
+    #                                 suffixes=['_left', '_right']).reset_index(drop=True)
+    #
+    #         testing_pair = testing_pair.rename(
+    #             columns={colname['location']+'_left': 'groundtruth', colname['location']+'_right': colname['location'] })
+    #         testing_pair = testing_pair[[colname['company'], colname['location'], 'groundtruth']]
+    #         testing_pair['label'] = (testing_pair[colname['location']] == testing_pair['groundtruth'])
+    #         testing_pair = testing_pair[[colname['company'], colname['location'] , 'label']]
+    #
+    #         valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=testing_pair,
+    #                                    emb_dict=loc_name_dict, name='valid', shuffle=False)
+    #         print('Predictions for city %d' % ind_city)
+    #
+    #         if wework_location_only:
+    #             pre_name = 'ww_'
+    #         else:
+    #             pre_name = ''
+    #
+    #         sampling = True if not args.all else False
+    #         predict(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
+    #                 use_cuda=use_cuda, test_pair=testing_pair[[colname['location'], colname['company']]],
+    #                 pre_name=pre_name, \
+    #                 save_name=pred_save_name[ind_city], lossType=lossType,sampling=sampling)
+    #
+    # elif args.mode == 'predict_salesforce':
+    #     """
+    #     It will generate a score for each company with all the locations(including companies/locations in training set)
+    #     or locations of ww only
+    #     """
+    #     pdc_all = pd.read_csv(pjoin(TR_DATA_ROOT, c_salesforce_file))[[colname['company'], 'city']]
+    #     for ind_city, str_city in enumerate(cityname):
+    #         pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[[colname['location'], colname['company']]]
+    #         pdc = pdc_all[pdc_all['city'] == str_city]
+    #         tot_comp = len(pdc)
+    #         print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
+    #         pdc[colname['location']] = 'a'
+    #         # in case of multi-mapping
+    #         # pdcl = pdcl.groupby('atlas_location_uuid').first().reset_index()
+    #         all_loc_name = pdcl[[colname['location']]].groupby(colname['location']).first().reset_index()
+    #
+    #         if wework_location_only:
+    #             loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[[colname['location'], 'is_wework']]
+    #             loc_ww = loc_feat[loc_feat['is_wework'] == True]
+    #             all_loc_name = \
+    #                 all_loc_name.merge(loc_ww, on=colname['location'], how='inner', suffixes=['', '_right'])[
+    #                     [colname['location']]]
+    #
+    #         tot_loc = len(all_loc_name)
+    #         print('Total %d locations belonged to ww in %s' % (tot_loc, str_city))
+    #
+    #         all_loc_name['key'] = 0
+    #         pdc['key'] = 0
+    #
+    #         testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
+    #                                 suffixes=['_left', '_right']).reset_index(drop=True)
+    #
+    #         testing_pair = testing_pair.rename(
+    #             columns={colname['location']+'_left': 'groundtruth', colname['location']+'_right': colname['location']})
+    #         testing_pair = testing_pair[[colname['company'], colname['location'], 'groundtruth']]
+    #         testing_pair['label'] = (testing_pair[colname['location']] == testing_pair['groundtruth'])
+    #         testing_pair = testing_pair[[colname['company'], colname['location'], 'label']]
+    #
+    #         valid_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat, df_pair=testing_pair,
+    #                                    emb_dict=loc_name_dict, name='valid', shuffle=False)
+    #         print('Predictions for city %d' % ind_city)
+    #
+    #         if wework_location_only:
+    #             pre_name = 'ww_'
+    #         else:
+    #             pre_name = ''
+    #
+    #         if args.query_location:
+    #             topk = min(50, tot_comp)
+    #         else:
+    #             topk = min(3, tot_loc)
+    #
+    #         sampling = True if not args.all else False
+    #         predict(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
+    #                 use_cuda=use_cuda, test_pair=testing_pair[[colname['location'], colname['company']]],
+    #                 pre_name=pre_name, \
+    #                 save_name=pred_save_name[ind_city], lossType=lossType, query_loc_flag=args.query_location,
+    #                 topk=topk, sampling=sampling)
 
 
 # =============================================================================================================================
@@ -404,25 +398,16 @@ def train(args, model: nn.Module, criterion, *, params,
                 featComp = batch_dat['feat_comp']
                 featLoc = batch_dat['feat_loc']
                 featId = batch_dat['feat_id']
-                featEnsemble = batch_dat['feat_ensemble_score']
                 targets = batch_dat['target']
 
                 # print(featComp.shape,featLoc.shape,batch_dat['feat_comp_dim'],batch_dat['feat_loc_dim'])
 
                 if use_cuda:
-                    featComp, featLoc, targets, featId, featEnsemble = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda(), featEnsemble.cuda()
+                    featComp, featLoc, targets, featId = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda()
 
                 # common_feat_comp, common_feat_loc, feat_comp_loc, outputs = model(feat_comp=featComp, feat_loc=featLoc)
-                model_output = model(feat_comp=featComp, feat_loc=featLoc, id_loc=featId,
-                                     feat_ensemble_score=featEnsemble)
+                model_output = model(feat_comp=featComp, feat_loc=featLoc, id_loc=featId)
                 outputs = model_output['outputs']
-
-                # outputs = outputs.squeeze()
-
-                # loss1 = softmax_loss(outputs, targets)
-                # loss2 = TripletLossV1(margin=0.5)(feats,targets)
-                # loss1 = criterion(outputs,targets)
-
 
                 if args.cos_sim_loss:
                     out_comp_feat = model_output['comp_feat']
@@ -476,32 +461,25 @@ def train(args, model: nn.Module, criterion, *, params,
             return False
     return True
 
-
-# =============================================================================================================================
-# validation
-# =============================================================================================================================
-def validation(
-        model: nn.Module, criterion, valid_loader, use_cuda, lossType='softmax', num_loc=0, topK=0, Query_Company=True
-) -> Dict[str, float]:
+# #=============================================================================================================================
+# #predict
+# #=============================================================================================================================
+def predict(
+        model: nn.Module, criterion, predict_loader, use_cuda, test_pair, save_name: str, pre_name: str = '', topk=300,
+        query_loc_flag=True, lossType='softmax', sampling=True) -> Dict[str, float]:
     model.eval()
     all_losses, all_predictions, all_targets = [], [], []
     with torch.no_grad():
-        for batch_dat in valid_loader:
+        for batch_dat in predict_loader:
             featComp = batch_dat['feat_comp']
             featLoc = batch_dat['feat_loc']
             featId = batch_dat['feat_id']
             targets = batch_dat['target']
-            featEnsemble = batch_dat['feat_ensemble_score']
             all_targets.append(targets)  # torch@cpu
             if use_cuda:
-                featComp, featLoc, targets, featId, featEnsemble = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda(), featEnsemble.cuda()
-            model_output = model(feat_comp=featComp, feat_loc=featLoc, id_loc=featId, feat_ensemble_score=featEnsemble)
+                featComp, featLoc, targets, featId = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda()
+            model_output = model(feat_comp=featComp, feat_loc=featLoc, id_loc=featId)
             outputs = model_output['outputs']
-            # outputs = outputs.squeeze()
-            # print(outputs.shape,targets.shape)
-            # targets = targets.float()
-            # loss = criterion(outputs, targets)
-            # loss = softmax_loss(outputs, targets)
 
             if lossType == 'softmax':
                 loss = softmax_loss(outputs, targets)
@@ -513,9 +491,6 @@ def validation(
                 loss = criterion(out_comp_feat, out_loc_feat, cos_targets)
                 all_predictions.append(model_output['outputs_cos'])
 
-            # cur_batch_predictions = outputs[:, 1].data.cpu().numpy()
-            # cur_batch_targets = targets.data.cpu().numpy()
-            # fpr, tpr, roc_thresholds = roc_curve(cur_batch_targets, cur_batch_predictions)
             all_losses.append(loss.data.cpu().numpy())
 
     all_predictions = torch.cat(all_predictions)
@@ -530,11 +505,81 @@ def validation(
         all_predictions = (all_predictions + 1) / 2  # squeeze to [0,1]
         all_predictions2 = all_predictions.data.cpu().numpy()
 
-    # acc = topkAcc(all_predictions,all_targets.cuda(),topk=(1,))
+    print('saving...')
+    dat_pred_pd = pd.DataFrame(data=all_predictions2.reshape(-1, 1), columns=['similarity'])
+    res_pd = pd.concat([test_pair, dat_pred_pd], axis=1)
 
-    # value, all_predictions = all_predictions.topk(1, dim=1, largest=True, sorted=True)
+    if sampling:
+        print('sampling...')
+        # for each location we return topk companies
+        if query_loc_flag:
+            sample_pd = res_pd.groupby('atlas_location_uuid').apply(
+                lambda x: x.nlargest(topk, ['similarity'])).reset_index(drop=True)
+        else:
+            sample_pd = res_pd.groupby('duns_number').apply(
+                lambda x: x.nlargest(topk, ['similarity'])).reset_index(drop=True)
+        sample_pd.to_csv(pjoin(TR_DATA_ROOT, 'sampled_' + pre_name + save_name))
+    else:
+        print('saving total data...')
+        res_pd.to_csv(pjoin(TR_DATA_ROOT, 'all_' + pre_name + save_name))
 
-    # all_predictions = all_predictions.data.cpu().numpy()
+    roc_auc = 0
+
+    metrics = {}
+    metrics['valid_f1'] = 0  # fbeta_score(all_targets, all_predictions, beta=1, average='macro')
+    metrics['valid_loss'] = np.mean(all_losses)
+    metrics['valid_top1'] = 0  # acc[0].item()
+    metrics['auc'] = roc_auc
+    metrics['valid_top5'] = 0  # acc[1].item()
+
+    print(' | '.join(['%s %1.3f' % (k, v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
+
+    return metrics
+
+
+# =============================================================================================================================
+# validation
+# =============================================================================================================================
+def validation(
+        model: nn.Module, criterion, valid_loader, use_cuda, lossType='softmax') -> Dict[str, float]:
+    model.eval()
+    all_losses, all_predictions, all_targets = [], [], []
+    with torch.no_grad():
+        for batch_dat in valid_loader:
+            featComp = batch_dat['feat_comp']
+            featLoc = batch_dat['feat_loc']
+            featId = batch_dat['feat_id']
+            targets = batch_dat['target']
+            all_targets.append(targets)  # torch@cpu
+            if use_cuda:
+                featComp, featLoc, targets, featId = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda()
+            model_output = model(feat_comp=featComp, feat_loc=featLoc, id_loc=featId)
+            outputs = model_output['outputs']
+
+            if lossType == 'softmax':
+                loss = softmax_loss(outputs, targets)
+                all_predictions.append(outputs)
+            else:
+                out_comp_feat = model_output['comp_feat']
+                out_loc_feat = model_output['loc_feat']
+                cos_targets = 2 * targets.float() - 1.0
+                loss = criterion(out_comp_feat, out_loc_feat, cos_targets)
+                all_predictions.append(model_output['outputs_cos'])
+
+            all_losses.append(loss.data.cpu().numpy())
+
+    all_predictions = torch.cat(all_predictions)
+    all_targets = torch.cat(all_targets)  # list->torch
+    print('all_predictions.shape: ')
+    print(all_predictions.shape)
+
+    if lossType == 'softmax':
+        all_predictions = F.softmax(all_predictions, dim=1)
+        all_predictions2 = all_predictions[:, 1].data.cpu().numpy()
+    else:
+        all_predictions = (all_predictions + 1) / 2  # squeeze to [0,1]
+        all_predictions2 = all_predictions.data.cpu().numpy()
+
     all_targets = all_targets.data.cpu().numpy()
 
     # save_obj(all_targets,'all_targets')
@@ -544,41 +589,38 @@ def validation(
 
     roc_auc = auc(fpr, tpr)
 
-    if topK > 0 and num_loc > 0:
-        if Query_Company:  # topk accuracy for company query
-            all_predictions2 = all_predictions2.reshape(-1, num_loc)
-            all_targets = all_targets.reshape(-1, num_loc)
-            print('topk data reforming checking: ', (all_targets.sum(axis=1) == 1).all())
-            # truth_cat = one_hot_2_idx_numpy(all_targets)
-            # R_cat = np.array(list(range(num_loc)))
-            # topk_precision = calc_topk_acc_cat_all(all_predictions2, truth_cat, R_cat, k=topK)
-        else:
-            all_predictions2 = all_predictions2.reshape(num_loc, -1)
-            all_targets = all_targets.reshape(num_loc, -1)
-
-        topk_recall = topk_recall_score_all(pred=all_predictions2, truth=all_targets, topk=topK)
-
-        step = int(topK / 10)
-        x = list(range(1, topK + 1))
-        y = list(topk_recall.reshape(-1))
-        plt.figure()
-        plt.plot(x, y)
-        plt.grid()
-
-        for z in range(10, topK + 1, step):
-            z = z - 1
-            plt.text(z, y[z], '%.4f' % y[z], ha='center', va='bottom', fontsize=9)
-
-        plt.xlabel("topk")
-        plt.ylabel("recall")
-
-        if Query_Company:
-            plt.title("topk recall curve of %d location" % num_loc)
-            plt.savefig('topk_recall_of_company_query_%d.jpg' % num_loc)
-        else:
-            plt.title("topk recall curve of companies with %d locations" % num_loc)
-            plt.savefig('topk_recall_of_location_query_%d.jpg' % num_loc)
-        plt.close()
+    # if topK > 0 and num_loc > 0:
+    #     if Query_Company:  # topk accuracy for company query
+    #         all_predictions2 = all_predictions2.reshape(-1, num_loc)
+    #         all_targets = all_targets.reshape(-1, num_loc)
+    #         print('topk data reforming checking: ', (all_targets.sum(axis=1) == 1).all())
+    #     else:
+    #         all_predictions2 = all_predictions2.reshape(num_loc, -1)
+    #         all_targets = all_targets.reshape(num_loc, -1)
+    #
+    #     topk_recall = topk_recall_score_all(pred=all_predictions2, truth=all_targets, topk=topK)
+    #
+    #     step = int(topK / 10)
+    #     x = list(range(1, topK + 1))
+    #     y = list(topk_recall.reshape(-1))
+    #     plt.figure()
+    #     plt.plot(x, y)
+    #     plt.grid()
+    #
+    #     for z in range(10, topK + 1, step):
+    #         z = z - 1
+    #         plt.text(z, y[z], '%.4f' % y[z], ha='center', va='bottom', fontsize=9)
+    #
+    #     plt.xlabel("topk")
+    #     plt.ylabel("recall")
+    #
+    #     if Query_Company:
+    #         plt.title("topk recall curve of %d location" % num_loc)
+    #         plt.savefig('topk_recall_of_company_query_%d.jpg' % num_loc)
+    #     else:
+    #         plt.title("topk recall curve of companies with %d locations" % num_loc)
+    #         plt.savefig('topk_recall_of_location_query_%d.jpg' % num_loc)
+    #     plt.close()
 
     metrics = {}
     metrics['valid_f1'] = 0  # fbeta_score(all_targets, all_predictions, beta=1, average='macro')

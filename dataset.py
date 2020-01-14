@@ -570,6 +570,145 @@ def collate_TestDatasetLocationRSRB(batch):
         "targets": targets,
     }
 
+
+# =======================================================================================================================
+# data loader function for company location score more general and id embedding
+# =======================================================================================================================
+class TrainDatasetLocationRS_salesforce(Dataset):
+    def __init__(self, df_comp_feat: pd.DataFrame,
+                 df_loc_feat: pd.DataFrame,
+                 df_pair: pd.DataFrame,
+                 df_city_atlas:pd.DataFrame,
+                 df_acc_city:pd.DataFrame,
+                 emb_dict: dict,
+                 colname={'location':'atlas_location_uuid','company':'duns_number'},
+                 name: str = 'train', posN=100, negN=200, testStep=500000):
+        super().__init__()
+        self._df_comp_feat = df_comp_feat.fillna(0)
+        self._df_loc_feat = df_loc_feat.fillna(0)
+        self._df_pair = df_pair.reset_index()
+        self._name = name
+        self._posN = posN
+        self._negN = negN
+        self._step = testStep
+        self._emb_dict = emb_dict
+        self._not_cols = ['label', 'city'] + [ v for k,v in colname.items()]
+        self.cid = colname['company']
+        self.bid = colname['location']
+        self._df_city_atlas = df_city_atlas
+        self._df_acc_city = df_acc_city
+
+    def __len__(self):
+        if self._name == 'train':
+            return 1000
+        else:
+            return math.ceil(len(self._df_pair) / self._step)  # len of pair
+
+    def tbatch(self):
+        return self._posN + self._negN
+
+    def __getitem__(self, idx: int):
+        cid = str(self.cid)
+        bid = str(self.bid)
+        if self._name == 'train':
+            # sample a part of data from training pair as positive seed
+            dat1 = self._df_pair.sample(n=self._posN).reset_index(drop=True)
+            pot_neg_dat = dat1.merge(self._df_acc_city, on = cid, suffixes= sfx).merge(self._df_city_atlas, on='city',suffixes=sfx)[[cid,bid]]
+            pot_neg_dat['label'] = 0
+            dat1['label'] = 1
+
+            # col alignment
+            col_list = [cid, bid, 'label']
+            dat1 = dat1[col_list]
+            pot_neg_dat = pot_neg_dat[col_list]
+
+            # clean pos dat in neg dat
+            neg_dat = pd.merge(pot_neg_dat, dat1, on=[cid, bid], how='left',
+                               suffixes=sfx).reset_index(drop=True)
+            neg_dat['label'] = neg_dat['label'].fillna(0)
+            neg_dat = neg_dat.loc[neg_dat['label_right'] != 1,:]
+
+            neg_dat = neg_dat[[cid, bid, 'label']].sample(
+                n=min(self._negN, len(neg_dat))).reset_index(drop=True)
+
+            pos_dat = dat1[col_list]
+            res_dat = pd.concat([pos_dat, neg_dat], axis=0)
+            res_dat = res_dat.sample(frac=1).reset_index(drop=True)
+            Label = res_dat[['label']].to_numpy()
+        else:
+            inds = idx * self._step
+            inde = min((idx + 1) * self._step, len(self._df_pair)) - 1  # loc[a,b] = [a,b] close set!!
+            res_dat = self._df_pair[[cid,bid,'label']]
+            res_dat = res_dat.iloc[inds:inde, :]
+            Label = res_dat[['label']].to_numpy()
+
+        # concate training pair with location/company feature
+        F_res_dat = pd.merge(res_dat, self._df_comp_feat, on=cid, how='left',suffixes=sfx)
+        list_col = list(self._df_comp_feat.columns)
+        list_col = [col for col in list_col if col not in self._not_cols]
+        FeatComp = F_res_dat[list_col].to_numpy()
+
+        F_res_dat = pd.merge(res_dat, self._df_loc_feat, on=bid, how='left', suffixes=sfx)
+        list_col = list(self._df_loc_feat.columns)
+        list_col = [col for col in list_col if col not in self._not_cols]
+        FeatLoc = F_res_dat[list_col].to_numpy()
+
+
+        # trans id(str) 2 Long
+        loc_name_str = res_dat[bid].values.tolist()
+        loc_name_int = [self._emb_dict[n] for n in loc_name_str]
+
+        # [B,Len_feat],[B,1]
+        assert (len(Label) == len(FeatComp) and len(Label) == len(FeatLoc))
+        # print(Label.sum(), FeatLoc.sum(),FeatComp.sum())
+
+        featComp = torch.FloatTensor(FeatComp)
+        featLoc = torch.FloatTensor(FeatLoc)
+        featId = torch.LongTensor(loc_name_int).reshape(-1, 1)
+        target = torch.LongTensor(Label).reshape(-1, 1)
+
+        return {"feat_comp": featComp,
+                "feat_loc": featLoc,
+                "target": target,
+                "feat_id": featId,
+                "feat_comp_dim": FeatComp.shape,
+                "feat_loc_dim": FeatLoc.shape}
+
+
+def collate_TrainDatasetLocationRS_salesforce(batch):
+    """
+    special collate_fn function for UDF class TrainDatasetTriplet
+    :param batch: 
+    :return: 
+    """
+    feat_comp = []
+    feat_loc = []
+    feat_id = []
+    feat_ensemble_score = []
+    labels = []
+
+    for b in batch:
+        feat_comp.append(b['feat_comp'])
+        feat_loc.append(b['feat_loc'])
+        feat_id.append(b['feat_id'])
+        labels.append(b['target'])
+
+    feat_comp = torch.cat(feat_comp, 0)
+    feat_loc = torch.cat(feat_loc, 0)
+    feat_id = torch.cat(feat_id, 0)
+    labels = torch.cat(labels, 0)
+    # print(feat_comp.shape,feat_loc.shape,labels.shape)
+
+    assert (feat_loc.shape[0] == labels.shape[0])
+    assert (feat_comp.shape[0] == labels.shape[0])
+    assert (feat_id.shape[0] == labels.shape[0])
+    return {
+        "feat_comp": feat_comp,
+        "feat_loc": feat_loc,
+        "feat_id": feat_id,
+        "target": labels
+    }
+
 # =======================================================================================================================
 # image name looks like : idx_copy.jpg
 def get_ids(root: Path) -> List[str]:
