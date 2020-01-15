@@ -63,9 +63,9 @@ def main():
     arg = parser.add_argument
     arg('--mode', choices=['train', 'validate', 'predict_valid', 'predict_test',
                            'predict_salesforce'], default='train')
-    arg('--run_root', default='result/salesforce_location_company')
-    arg('--model', default='location_recommend_model_v3')
-    arg('--ckpt', type=str, default='model_loss_best.pt')
+    arg('--run_root', default='result/salesforce_location_company') # where the model will be saved
+    arg('--model', default='location_recommend_model_v3') # which version of model will be used
+    arg('--ckpt', type=str, default='model_loss_best.pt') # name of checkpoint which should be used in validation/prediction
     arg('--batch-size', type=int, default=1)
     arg('--step', type=str, default=8)  # update the gradients every 8 batch(sample num = step*batch-size*inner_size)
     arg('--workers', type=int, default=16)
@@ -105,16 +105,6 @@ def main():
 
     df_acc_city = pd.read_csv(pjoin(salesforce_path, salesforce_acc_city_prename + args.apps), index_col=0)
     df_city_atlas = pd.read_csv(pjoin(salesforce_path, salesforce_city_atlas_prename + args.apps), index_col=0)
-
-    # clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    # cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
-    # c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
-    # cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    # lfile = args.ls_card
-
-    # clfile = [c + args.apps for c in clfile]
-    # pred_save_name = [c.replace(args.apps, '') + '_similarity' + args.apps for c in clfile]
-
 
     # split train/valid fold
     df_train_pair = df_all_pair[df_all_pair['fold'] == 0]
@@ -156,7 +146,6 @@ def main():
         lossType = 'softmax'
 
     # se- ception dpn can only use finetuned model from imagenet
-    # model = getattr(models, args.model)(feat_comp_dim=102, feat_loc_dim=23) #location_recommend_model_v1
     model = getattr(rsmodels, args.model)(feat_comp_dim=102, feat_loc_dim=23,
                                           embedding_num=len(loc_name_dict))  # location_recommend_model_v3
 
@@ -400,8 +389,6 @@ def train(args, model: nn.Module, criterion, *, params,
                 featId = batch_dat['feat_id']
                 targets = batch_dat['target']
 
-                # print(featComp.shape,featLoc.shape,batch_dat['feat_comp_dim'],batch_dat['feat_loc_dim'])
-
                 if use_cuda:
                     featComp, featLoc, targets, featId = featComp.cuda(), featLoc.cuda(), targets.cuda(), featId.cuda()
 
@@ -416,7 +403,7 @@ def train(args, model: nn.Module, criterion, *, params,
                     loss = criterion(out_comp_feat, out_loc_feat, cos_targets)
                     lossType = 'cosine'
                 else:
-                    loss = softmax_loss(outputs, targets)
+                    loss = criterion(outputs, targets)
                     lossType = 'softmax'
 
                 batch_size = featComp.size(0)
