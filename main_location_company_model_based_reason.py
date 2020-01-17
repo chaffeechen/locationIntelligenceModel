@@ -34,6 +34,8 @@ from gunlib.company_location_score_lib import global_filter,sub_rec_similar_comp
 
 from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score
 
+from header import *
+
 pjoin = os.path.join
 #not used @this version /home/ubuntu/location_recommender_system/ /Users/yefeichen/Database/location_recommender_system
 TR_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
@@ -103,11 +105,10 @@ def main():
     feat_name = list(df_comp_feat.columns)[1:]+list(df_loc_feat.columns)[1:]
     print(len(feat_name))
 
-    clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    lfile = 'location_scorecard_191113.csv'
+    # cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
+    # lfile = 'location_scorecard_191113.csv'
 
-    clfile = [c + args.apps for c in clfile]
+    clfile = [c + args.apps for c in citynameabbr]
     pre_name = args.pre_name
     pred_save_name = [ pre_name + c.replace(args.apps,'') + '_similarity'+args.apps for c in clfile ]
 

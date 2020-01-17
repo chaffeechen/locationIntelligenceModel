@@ -13,7 +13,7 @@ import models.location_recommendation as rsmodels
 from utils import load_model
 
 from models.utils import *
-
+from header import *
 # from torch.utils.data import DataLoader
 
 pjoin = os.path.join
@@ -21,6 +21,7 @@ pjoin = os.path.join
 
 model_name = '' #same as main cmd --model XXX
 wework_location_only = True
+
 
 
 bid = 'atlas_location_uuid'
@@ -57,8 +58,8 @@ def main():
 
     # df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
     df_comp_feat = pd.read_csv(pjoin(datapath_mid, 'company_feat' + args.apps), index_col=0)
-    citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
+    # citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
+    # cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
     clfile = [c + args.apps for c in citynameabbr]
 
     not_cols = ['duns_number', 'atlas_location_uuid', 'label', 'city']

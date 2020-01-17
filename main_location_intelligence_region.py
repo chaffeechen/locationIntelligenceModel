@@ -27,6 +27,7 @@ from utils import (write_event, load_model, ThreadingDataLoader as DataLoader, a
                    ON_KAGGLE)
 
 from models.utils import *
+from header import *
 from udf.basic import save_obj, load_obj, calc_topk_acc_cat_all, topk_recall_score_all
 import matplotlib.pyplot as plt
 
@@ -110,10 +111,10 @@ def main():
     df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
     df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
 
-    citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
-
-    cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
+    # citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
+    # cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
+    #
+    # cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
     lfile = args.lscard #'location_scorecard_191113.csv'
 
     clfile = [c + args.apps for c in citynameabbr]
