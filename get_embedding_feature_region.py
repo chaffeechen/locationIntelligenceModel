@@ -114,6 +114,7 @@ def main():
         N, featdim = featRegion.shape
 
         featRegion = featRegion.view(-1, args.maxK, featdim)  # B,K,D
+        print(featRegion.shape)
 
         outputs = model(feat_comp=None, feat_K_comp=featRegion, feat_loc=None)
 
