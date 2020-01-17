@@ -31,6 +31,9 @@ model_name = '' #same as main cmd --model XXX
 wework_location_only = True
 
 
+bid = 'atlas_location_uuid'
+cid = 'duns_number'
+sfx = ['','_right']
 
 #=============================================================================================================================
 #main
@@ -47,6 +50,9 @@ def main():
     arg('--maxK',type=int,default=50)
     arg('--apps',type=str,default='_191114.csv')
     arg('--pre_name', type=str, default='sampled_ww_')
+    arg('--dbname',type=str,default='tmp_table')
+    arg('--ww',action='store_true',help='produce ww location only')
+    arg('--lscard', default='location_scorecard_200106.csv')
 
     #cuda version T/F
     use_cuda = cuda.is_available()
@@ -55,14 +61,20 @@ def main():
     #run_root: model/weights root
     run_root = Path(args.run_root)
     datapath = args.path
+    datapath_mid = pjoin(datapath,args.dbname)
 
     # df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
-    df_comp_feat = pd.read_csv(pjoin(datapath, 'company_feat' + args.apps), index_col=0)
+    df_comp_feat = pd.read_csv(pjoin(datapath_mid, 'company_feat' + args.apps), index_col=0)
     citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
+    cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
     clfile = [c + args.apps for c in citynameabbr]
 
     not_cols = ['duns_number', 'atlas_location_uuid', 'label', 'city']
 
+    if args.ww:
+        loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, args.lscard))[['atlas_location_uuid', 'is_wework']]
+        loc_ww = loc_feat.loc[loc_feat['is_wework'] == True]
+        print('Total %d locations inside ls card belonged to ww.' % len(loc_ww))
 
     global model_name
     model_name = args.model
@@ -83,8 +95,10 @@ def main():
 
     for ind_city, filename in enumerate(clfile):
         print('prcessing city %s'%filename)
-        cldat = pd.read_csv(pjoin(datapath, filename))
-        cldat['city'] = ind_city
+        cldat = pd.read_csv(pjoin(datapath_mid, filename))
+        if args.ww:
+            cldat = cldat.merge(loc_ww,on=bid,suffixes=sfx)
+        # cldat['city'] = ind_city
 
         fn = lambda obj: obj.loc[np.random.choice(obj.index, args.maxK, True), :]
         tbB = cldat.groupby('atlas_location_uuid').apply(fn).reset_index(drop=True)[['duns_number', 'atlas_location_uuid']]
@@ -95,7 +109,8 @@ def main():
 
         featRegion = tbB[list_col].to_numpy()
         tbBLoc = tbB[['atlas_location_uuid']]
-        tbBLoc = tbBLoc.loc[::args.maxK,:]
+        tbBLoc = tbBLoc.iloc[::args.maxK,:]
+        tbBLoc['city'] = cityname[ind_city]
 
         featRegion = torch.FloatTensor(featRegion)
 
@@ -129,7 +144,7 @@ def main():
 
 
     loc_dat = pd.concat([locName, feat_dat], axis=1)
-    loc_dat.to_csv(pjoin(datapath,'location_feat_emb_'+args.model+'.csv'))
+    loc_dat.to_csv(pjoin(datapath_mid,'location_feat_emb_'+args.model+'.csv'))
 
 
 
