@@ -82,6 +82,7 @@ def main():
     arg('--lscard',default='location_scorecard_191113.csv')
     arg('--data_path',default='/home/ubuntu/location_recommender_system/')
     arg('--dbname',default='tmp_table')
+    arg('--airflow', action='store_true')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -208,68 +209,88 @@ def main():
                    lossType=lossType)
 
     elif args.mode == 'predict':
-        """
-        all region features are embedded as vectors before ahead
-        """
-        pdc_all = pd.read_csv(pjoin(MID_DATA_ROOT, c_salesforce_file))[['duns_number', 'city']]
-        for ind_city, str_city in enumerate(cityname):
-            pdcl = pd.read_csv(pjoin(MID_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
-            pdc = pdc_all.loc[pdc_all['city'] == str_city]
-            tot_comp = len(pdc)
-            print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
-            pdc['atlas_location_uuid'] = 'a'
-            # in case of multi-mapping
-            all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
-                ['atlas_location_uuid']].first().reset_index(drop=True)
-            print('Total %d locations have companies inside.'%len(all_loc_name))
+        if not args.airflow:
+            """
+            all region features are embedded as vectors before ahead
+            """
+            pdc_all = pd.read_csv(pjoin(MID_DATA_ROOT, c_salesforce_file))[['duns_number', 'city']]
+            for ind_city, str_city in enumerate(cityname):
+                pdcl = pd.read_csv(pjoin(MID_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
+                pdc = pdc_all.loc[pdc_all['city'] == str_city]
+                tot_comp = len(pdc)
+                print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
+                pdc['atlas_location_uuid'] = 'a'
+                # in case of multi-mapping
+                all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
+                    ['atlas_location_uuid']].first().reset_index(drop=True)
+                print('Total %d locations have companies inside.'%len(all_loc_name))
 
-            if wework_location_only:
-                loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[['atlas_location_uuid', 'is_wework']]
-                loc_ww = loc_feat.loc[loc_feat['is_wework'] == True]
-                print('Total %d locations inside ls card belonged to ww.'%len(loc_ww))
-                all_loc_name = \
-                    all_loc_name.merge(loc_ww, on='atlas_location_uuid', how='inner', suffixes=['', '_right'])[
-                        ['atlas_location_uuid']]
+                if wework_location_only:
+                    loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, lfile))[['atlas_location_uuid', 'is_wework']]
+                    loc_ww = loc_feat.loc[loc_feat['is_wework'] == True]
+                    print('Total %d locations inside ls card belonged to ww.'%len(loc_ww))
+                    all_loc_name = \
+                        all_loc_name.merge(loc_ww, on='atlas_location_uuid', how='inner', suffixes=['', '_right'])[
+                            ['atlas_location_uuid']]
 
-            tot_loc = len(all_loc_name)
-            print('Total %d locations belonged to ww in %s' % (tot_loc, str_city))
+                tot_loc = len(all_loc_name)
+                print('Total %d locations belonged to ww in %s' % (tot_loc, str_city))
 
-            all_loc_name['key'] = 0
-            pdc['key'] = 0
+                all_loc_name['key'] = 0
+                pdc['key'] = 0
 
-            testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
-                                    suffixes=['_left', '_right']).reset_index(drop=True)
+                testing_pair = pd.merge(pdc, all_loc_name, on='key', how='left',
+                                        suffixes=['_left', '_right']).reset_index(drop=True)
 
-            print('testing pairs: %d, location number:%d, company number:%d'% (len(testing_pair), len(all_loc_name), len(pdc)))
+                print('testing pairs: %d, location number:%d, company number:%d'% (len(testing_pair), len(all_loc_name), len(pdc)))
 
-            testing_pair = testing_pair.rename(
-                columns={'atlas_location_uuid_left': 'groundtruth', 'atlas_location_uuid_right': 'atlas_location_uuid'})
-            testing_pair = testing_pair[['duns_number', 'atlas_location_uuid', 'groundtruth']]
-            testing_pair['label'] = (testing_pair['atlas_location_uuid'] == testing_pair['groundtruth'])
-            testing_pair = testing_pair[['duns_number', 'atlas_location_uuid', 'label']]
+                testing_pair = testing_pair.rename(
+                    columns={'atlas_location_uuid_left': 'groundtruth', 'atlas_location_uuid_right': 'atlas_location_uuid'})
+                testing_pair = testing_pair[['duns_number', 'atlas_location_uuid', 'groundtruth']]
+                testing_pair['label'] = (testing_pair['atlas_location_uuid'] == testing_pair['groundtruth'])
+                testing_pair = testing_pair[['duns_number', 'atlas_location_uuid', 'label']]
 
-            predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
-                                         df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
-                                         shuffle=False)
+                predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
+                                             df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
+                                             shuffle=False)
 
-            print('Predictions for city %d' % ind_city)
+                print('Predictions for city %d' % ind_city)
 
-            if wework_location_only:
+                if wework_location_only:
+                    pre_name = 'ww_'
+                else:
+                    pre_name = ''
+
+                if args.query_location:
+                    topk = min(50, tot_comp)
+                else:
+                    topk = min(3, tot_loc)
+
+                sampling = True if not args.all else False
+                predict(args = args, model = model, criterion = criterion, predict_loader = tqdm.tqdm(predict_loader, desc='Prediction'),
+                        use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
+                        pre_name=pre_name, \
+                        save_name=pred_save_name[ind_city], query_loc_flag=args.query_location,sampling=sampling,
+                        topk=topk)
+        else:
+            for ind_city, str_city in enumerate(cityname):
+                print('==> %s' % str_city )
+                pair_file = '%s_ww_loc_x_duns.csv' % citynameabbr[ind_city]
+                testing_pair = pd.read_csv(pjoin(MID_DATA_ROOT, pair_file), index_col=0)
+                predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
+                                             df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
+                                             shuffle=False)
+
+                print('Predictions for city %d' % ind_city)
                 pre_name = 'ww_'
-            else:
-                pre_name = ''
+                sampling = True
+                predict(args=args, model=model, criterion=criterion,
+                        predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
+                        use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
+                        pre_name=pre_name, \
+                        save_name=pred_save_name[ind_city], query_loc_flag=args.query_location, sampling=sampling,
+                        topk=0)
 
-            if args.query_location:
-                topk = min(50, tot_comp)
-            else:
-                topk = min(3, tot_loc)
-
-            sampling = True if not args.all else False
-            predict(args = args, model = model, criterion = criterion, predict_loader = tqdm.tqdm(predict_loader, desc='Prediction'),
-                    use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
-                    pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], query_loc_flag=args.query_location,sampling=sampling,
-                    topk=topk)
 
 
 # =============================================================================================================================
