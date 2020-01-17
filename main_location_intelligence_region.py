@@ -39,7 +39,8 @@ from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_sco
 pjoin = os.path.join
 # not used @this version /home/ubuntu/location_recommender_system/ /Users/yefeichen/Database/location_recommender_system
 TR_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
-TT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
+MID_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
+OT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
 
 OLD_N_CLASSES = 2
 N_CLASSES = 2  # 253#109
@@ -79,6 +80,8 @@ def main():
     arg('--apps', type=str, default='_191114.csv')
     arg('--all',action='store_true',help='return all the prediction')
     arg('--lscard',default='location_scorecard_191113.csv')
+    arg('--data_path',default='/home/ubuntu/location_recommender_system/')
+    arg('--dbname',default='tmp_table')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -87,19 +90,24 @@ def main():
     # run_root: model/weights root
     run_root = Path(args.run_root)
 
+    global TR_DATA_ROOT,OT_DATA_ROOT,MID_DATA_ROOT
+    TR_DATA_ROOT = args.data_path
+    OT_DATA_ROOT = pjoin(TR_DATA_ROOT,args.dbname)
+    MID_DATA_ROOT = pjoin(TR_DATA_ROOT,args.dbname)
+
     global model_name
     model_name = args.model
 
     if args.mode in ['train', 'validate']:
-        df_train_pair = pd.read_csv(pjoin(TR_DATA_ROOT, 'region_train' + args.apps), index_col=0)
+        df_train_pair = pd.read_csv(pjoin(MID_DATA_ROOT, 'region_train' + args.apps), index_col=0)
         print('num of train pair %d' % len(df_train_pair))
-        df_valid_pair = pd.read_csv(pjoin(TR_DATA_ROOT, 'region_test' + args.apps), index_col=0)
+        df_valid_pair = pd.read_csv(pjoin(MID_DATA_ROOT, 'region_test' + args.apps), index_col=0)
         print('num of valid pair %d' % len(df_valid_pair))
     elif args.mode in ['predict']:
         c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
 
-    df_comp_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
-    df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
+    df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
+    df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
 
     citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
     cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
@@ -126,7 +134,7 @@ def main():
         """
         loading embedded feature vector
         """
-        df_region_feat = pd.read_csv(pjoin(TR_DATA_ROOT,'location_feat_emb_'+args.model+'.csv'),index_col=0)
+        df_region_feat = pd.read_csv(pjoin(MID_DATA_ROOT,'location_feat_emb_'+args.model+'.csv'),index_col=0)
         def make_loader(df_comp_feat: pd.DataFrame, df_loc_feat: pd.DataFrame, df_region_feat: pd.DataFrame,
                         df_pair: pd.DataFrame, testStep=500000,
                         name='predict', shuffle=False) -> DataLoader:
@@ -203,9 +211,9 @@ def main():
         """
         all region features are embedded as vectors before ahead
         """
-        pdc_all = pd.read_csv(pjoin(TR_DATA_ROOT, c_salesforce_file))[['duns_number', 'city']]
+        pdc_all = pd.read_csv(pjoin(MID_DATA_ROOT, c_salesforce_file))[['duns_number', 'city']]
         for ind_city, str_city in enumerate(cityname):
-            pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
+            pdcl = pd.read_csv(pjoin(MID_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
             pdc = pdc_all.loc[pdc_all['city'] == str_city]
             tot_comp = len(pdc)
             print('Total %d company found in %s from salesforce' % (tot_comp, str_city))
@@ -572,10 +580,10 @@ def predict(
         else:
             sample_pd = res_pd.groupby('duns_number').apply(
                 lambda x: x.nlargest(topk, ['similarity'])).reset_index(drop=True)
-        sample_pd.to_csv(pjoin(TR_DATA_ROOT,'sampled_' + pre_name + save_name))
+        sample_pd.to_csv(pjoin(OT_DATA_ROOT,'sampled_' + pre_name + save_name))
     else:
         print('saving total data...')
-        res_pd.to_csv(pjoin(TR_DATA_ROOT,'all_' + pre_name + save_name))
+        res_pd.to_csv(pjoin(OT_DATA_ROOT,'all_' + pre_name + save_name))
 
     roc_auc = 0
 
