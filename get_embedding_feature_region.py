@@ -18,14 +18,6 @@ from models.utils import *
 
 pjoin = os.path.join
 #not used @this version /home/ubuntu/location_recommender_system/ /Users/yefeichen/Database/location_recommender_system
-TR_DATA_ROOT = '/Users/yefeichen/Database/location_recommender_system/'
-TT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
-
-OLD_N_CLASSES = 2
-N_CLASSES = 2#253#109
-
-nPosTr = 1000
-nNegTr = 2000
 
 model_name = '' #same as main cmd --model XXX
 wework_location_only = True
@@ -72,7 +64,7 @@ def main():
     not_cols = ['duns_number', 'atlas_location_uuid', 'label', 'city']
 
     if args.ww:
-        loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT, args.lscard))[['atlas_location_uuid', 'is_wework']]
+        loc_feat = pd.read_csv(pjoin(datapath, args.lscard))[['atlas_location_uuid', 'is_wework']]
         loc_ww = loc_feat.loc[loc_feat['is_wework'] == True]
         print('Total %d locations inside ls card belonged to ww.' % len(loc_ww))
 
