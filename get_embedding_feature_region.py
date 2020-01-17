@@ -117,7 +117,8 @@ def main():
 
         outputs = model(feat_comp=None, feat_K_comp=featRegion, feat_loc=None)
 
-        emb_vecs = outputs['feat_region_org'].reshape(-1,)
+        emb_vecs = outputs['feat_region_org']
+        print(emb_vecs.shape)
 
         loc_num,feat_dim = emb_vecs.shape
         print('loc num:%d,feature dims:%d'%(loc_num,feat_dim))
