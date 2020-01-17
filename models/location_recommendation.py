@@ -130,7 +130,7 @@ class setLinearLayer_fast(nn.Module):
                             K).squeeze()  # [B,K,fout]-permute>[B,fout,K]-pool>[B,fout,1]->[B,fout]
         else:
             feat_out = feat_out.sum(dim=1)
-        return feat_out #[B,fout]
+        return feat_out.view(-1,self._fout) #[B,fout]
 
 
 class companyMLP(nn.Module):

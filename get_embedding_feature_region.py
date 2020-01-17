@@ -114,11 +114,10 @@ def main():
         N, featdim = featRegion.shape
 
         featRegion = featRegion.view(-1, args.maxK, featdim)  # B,K,D
-        print(featRegion.shape)
 
         outputs = model(feat_comp=None, feat_K_comp=featRegion, feat_loc=None)
 
-        emb_vecs = outputs['feat_region_org']
+        emb_vecs = outputs['feat_region_org'].reshape(-1,)
 
         loc_num,feat_dim = emb_vecs.shape
         print('loc num:%d,feature dims:%d'%(loc_num,feat_dim))
