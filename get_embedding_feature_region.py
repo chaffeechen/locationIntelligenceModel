@@ -90,6 +90,7 @@ def main():
         cldat = pd.read_csv(pjoin(datapath_mid, filename))
         if args.ww:
             cldat = cldat.merge(loc_ww,on=bid,suffixes=sfx)
+        print('%d pairs in real' % len(cldat))
         # cldat['city'] = ind_city
 
         fn = lambda obj: obj.loc[np.random.choice(obj.index, args.maxK, True), :]
@@ -98,6 +99,7 @@ def main():
         list_col = list(df_comp_feat.columns)
         list_col = [col for col in list_col if col not in not_cols]
         tbB = tbB.merge(df_comp_feat,how='left',on='duns_number',suffixes=['','_right'])
+        print('%d pairs to calc'%len(tbB))
 
         featRegion = tbB[list_col].to_numpy()
         tbBLoc = tbB[['atlas_location_uuid']]
