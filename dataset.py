@@ -526,6 +526,9 @@ class TestDatasetLocationRSRB(Dataset):
 
         N, featdim = featRegion.shape
 
+        print(featComp.shape)
+        print(featLoc.shape)
+
         assert ( (N == featComp.shape[0]) and (N==featLoc.shape[0]) )
         tc.eclapse()
 
