@@ -170,10 +170,10 @@ def main():
         for ind_city,_ in enumerate(clfile):
             print('Operating %s...'%pred_save_name[ind_city])
             testing_pair_file = pjoin(MID_DATA_ROOT, pred_save_name[ind_city])
-            if not os.path.isfile(testing_pair):
+            if not os.path.isfile(testing_pair_file):
                 print('skipped')
                 continue
-            testing_pair = pd.read_csv(pjoin(MID_DATA_ROOT, pred_save_name[ind_city]))[['atlas_location_uuid', 'duns_number']]
+            testing_pair = pd.read_csv(testing_pair_file)[['atlas_location_uuid', 'duns_number']]
             testing_pair['label'] = 0
             testing_pair = testing_pair[['duns_number', 'atlas_location_uuid','label']]
 
