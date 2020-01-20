@@ -167,7 +167,7 @@ def main():
         Path(str(run_root) + '/params.json').write_text(
             json.dumps(vars(args), indent=4, sort_keys=True))
 
-        for ind_city in range(clfile):
+        for ind_city,_ in enumerate(clfile):
             print('Operating %s...'%pred_save_name[ind_city])
             testing_pair_file = pjoin(MID_DATA_ROOT, pred_save_name[ind_city])
             if not os.path.isfile(testing_pair):
