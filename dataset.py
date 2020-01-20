@@ -527,10 +527,10 @@ class TestDatasetLocationRSRB(Dataset):
         targets = torch.LongTensor(datA[['label']].to_numpy().reshape(-1,1))
 
         N, featdim = featRegion.shape
-        print(N,featdim)
-
-        print(featComp.shape)
-        print(featLoc.shape)
+        # print(N,featdim)
+        #
+        # print(featComp.shape)
+        # print(featLoc.shape)
 
         assert ( (N == featComp.shape[0]) and (N==featLoc.shape[0]) )
         tc.eclapse()
