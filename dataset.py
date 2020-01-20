@@ -497,7 +497,8 @@ class TestDatasetLocationRSRB(Dataset):
         inds = idx * self._step
         inde = min((idx + 1) * self._step, dataLen) - 1
 
-        datA = self._df_pair.loc[inds:inde, ['duns_number', 'atlas_location_uuid','label']]
+        datA = self._df_pair.iloc[inds:inde]
+        datA = datA[['duns_number', 'atlas_location_uuid','label']]
 
         tc.start('Append feature with pairs')
         list_col = list(self._df_comp_feat.columns)
@@ -507,6 +508,7 @@ class TestDatasetLocationRSRB(Dataset):
         list_col = list(self._df_region_feat.columns)
         list_col = [col for col in list_col if col not in self._not_cols]
         featA_region = datA.merge(self._df_region_feat, on='atlas_location_uuid', how='left', suffixes=sfx)[list_col]
+        featA_region = featA_region.fillna(0)
 
 
         list_col = list(self._df_loc_feat.columns)
@@ -525,6 +527,7 @@ class TestDatasetLocationRSRB(Dataset):
         targets = torch.LongTensor(datA[['label']].to_numpy().reshape(-1,1))
 
         N, featdim = featRegion.shape
+        print(N,featdim)
 
         print(featComp.shape)
         print(featLoc.shape)
