@@ -106,6 +106,9 @@ def main():
         if args.ww:
             cldat = cldat.merge(loc_ww,on=bid,suffixes=sfx)
         print('%d pairs in real' % len(cldat))
+        if len(cldat) == 0:
+            print('skipped')
+            continue
         # cldat['city'] = ind_city
 
         fn = lambda obj: obj.loc[np.random.choice(obj.index, args.maxK, True), :]
