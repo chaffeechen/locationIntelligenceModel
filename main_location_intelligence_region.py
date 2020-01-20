@@ -84,6 +84,7 @@ def main():
     arg('--data_path',default='/home/ubuntu/location_recommender_system/')
     arg('--dbname',default='tmp_table')
     arg('--airflow', action='store_true')
+    arg('--addition', action='store_true', help='using features with addition')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -108,13 +109,22 @@ def main():
     elif args.mode in ['predict']:
         c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
 
-    df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
-    df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
 
-    # citynameabbr = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    # cityname = ['Palo Alto', 'San Francisco', 'San Jose', 'Los Angeles', 'New York']
-    #
-    # cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
+
+    if args.addition:
+        dataloader = data_process(root_path = args.data_path)
+        table_name = 'dnb_city_list%s' % args.apps
+        dnb_city_file_lst = dataloader.load_dnb_city_lst(db=args.dbname, table=table_name)
+        citynameabbr = dnb_city_file_lst['cityabbr']
+        cityname = dnb_city_file_lst['citylongname']
+        feat_ext = args.apps.replace('.csv','_add.csv')
+        df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + feat_ext), index_col=0)
+        df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + feat_ext), index_col=0)
+    else:
+        df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
+        df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
+    print('%d cities will be processed'%len(citynameabbr))
+
     lfile = args.lscard #'location_scorecard_191113.csv'
 
     clfile = [c + args.apps for c in citynameabbr]
