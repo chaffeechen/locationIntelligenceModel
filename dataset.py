@@ -495,7 +495,7 @@ class TestDatasetLocationRSRB(Dataset):
         tc = timer(display=self._debug)
         dataLen = len(self._df_pair)
         inds = idx * self._step
-        inde = min((idx + 1) * self._step, dataLen) - 1
+        inde = min((idx + 1) * self._step, dataLen) #BGFX: -1
 
         datA = self._df_pair.iloc[inds:inde]
         datA = datA[['duns_number', 'atlas_location_uuid','label']]
