@@ -265,7 +265,7 @@ def main():
                                              df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                              shuffle=False)
 
-                print('Predictions for city %d' % ind_city)
+                print('Predictions for city %s' % str_city)
 
                 if wework_location_only:
                     pre_name = 'ww_'
@@ -296,9 +296,9 @@ def main():
                                              df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                              shuffle=False)
 
-                print('Predictions for city %d' % ind_city)
+                print('Predictions for city %s' % str_city)
                 pre_name = 'ww_'
-                sampling = True
+                sampling = False
                 predict(args=args, model=model, criterion=criterion,
                         predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
                         use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],

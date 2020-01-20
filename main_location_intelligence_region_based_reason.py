@@ -21,6 +21,7 @@ from gunlib.company_location_score_lib import translocname2dict
 
 from models.utils import *
 from udf.basic import list2str
+from header import data_process
 from udf.basic import save_obj,load_obj,calc_topk_acc_cat_all,topk_recall_score_all
 import matplotlib.pyplot as plt
 from gunlib.company_location_score_lib import global_filter,sub_rec_similar_company,sub_rec_condition,merge_rec_reason_rowise,reason_json_format
@@ -32,7 +33,8 @@ from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_sco
 pjoin = os.path.join
 #not used @this version /home/ubuntu/location_recommender_system/ /Users/yefeichen/Database/location_recommender_system
 TR_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
-TT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
+MID_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
+OT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
 
 OLD_N_CLASSES = 2
 N_CLASSES = 2#253#109
@@ -70,7 +72,10 @@ def main():
     arg('--query_location',action='store_true',help='use location as query')
     arg('--apps',type=str,default='_191114.csv')
     arg('--pre_name', type=str, default='sampled_ww_')
-    arg('--citynum', type=int, default=5)
+    # arg('--citynum', type=int, default=5)
+    arg('--data_path', default='/home/ubuntu/location_recommender_system/')
+    arg('--dbname',default='tmp_table')
+    arg('--addition', action='store_true', help='using features with addition')
     # arg('--lscard', default='location_scorecard_191113.csv')
 
 
@@ -86,9 +91,25 @@ def main():
     global model_name
     model_name = args.model
 
-    df_comp_feat = pd.read_csv(pjoin(TR_DATA_ROOT,'company_feat'+args.apps),index_col=0)
-    df_loc_feat = pd.read_csv(pjoin(TR_DATA_ROOT,'location_feat'+args.apps),index_col=0)
-    df_region_feat = pd.read_csv(pjoin(TR_DATA_ROOT, 'location_feat_emb_' + args.model + '.csv'), index_col=0)
+    global TR_DATA_ROOT,OT_DATA_ROOT,MID_DATA_ROOT
+    TR_DATA_ROOT = args.data_path
+    OT_DATA_ROOT = pjoin(TR_DATA_ROOT,args.dbname)
+    MID_DATA_ROOT = pjoin(TR_DATA_ROOT,args.dbname)
+
+    if args.addition:
+        dataloader = data_process(root_path = args.data_path)
+        table_name = 'dnb_city_list%s' % args.apps
+        dnb_city_file_lst = dataloader.load_dnb_city_lst(db=args.dbname, table=table_name)
+        citynameabbr = dnb_city_file_lst['cityabbr']
+        cityname = dnb_city_file_lst['citylongname']
+        feat_ext = args.apps.replace('.csv','_add.csv')
+        df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + feat_ext), index_col=0)
+        df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + feat_ext), index_col=0)
+    else:
+        df_comp_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'company_feat' + args.apps), index_col=0)
+        df_loc_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat' + args.apps), index_col=0)
+
+    df_region_feat = pd.read_csv(pjoin(MID_DATA_ROOT, 'location_feat_emb_' + args.model + '.csv'), index_col=0)
 
     not_cols = ['duns_number', 'atlas_location_uuid', 'label', 'city']
 
@@ -96,9 +117,7 @@ def main():
     # print(feat_name)
     print(len(feat_name))
 
-    clfile = ['PA', 'SF', 'SJ', 'LA', 'NY']
-    cfile = ['dnb_pa.csv', 'dnb_sf.csv', 'dnb_sj.csv', 'dnb_Los_Angeles.csv', 'dnb_New_York.csv']
-    # lfile = args.lscard #'location_scorecard_191113.csv'
+    clfile = citynameabbr
 
     clfile = [c + args.apps for c in clfile]
     pre_name = args.pre_name
@@ -148,9 +167,13 @@ def main():
         Path(str(run_root) + '/params.json').write_text(
             json.dumps(vars(args), indent=4, sort_keys=True))
 
-        for ind_city in range(5):
+        for ind_city in range(clfile):
             print('Operating %s...'%pred_save_name[ind_city])
-            testing_pair = pd.read_csv(pjoin(TR_DATA_ROOT, pred_save_name[ind_city]))[['atlas_location_uuid', 'duns_number']]
+            testing_pair_file = pjoin(MID_DATA_ROOT, pred_save_name[ind_city])
+            if not os.path.isfile(testing_pair):
+                print('skipped')
+                continue
+            testing_pair = pd.read_csv(pjoin(MID_DATA_ROOT, pred_save_name[ind_city]))[['atlas_location_uuid', 'duns_number']]
             testing_pair['label'] = 0
             testing_pair = testing_pair[['duns_number', 'atlas_location_uuid','label']]
 
@@ -234,7 +257,7 @@ def predict_with_reason(
     res_pd['merged_feat'] = res_pd.apply(lambda x:merge_col_ind(x,col_name,feat_name),axis=1)
     res_pd = res_pd[['duns_number', 'atlas_location_uuid','merged_feat']]
 
-    res_pd.to_csv(pjoin(TR_DATA_ROOT,pre_name+save_name))
+    res_pd.to_csv(pjoin(MID_DATA_ROOT,pre_name+save_name))
 
     return res_pd
 
