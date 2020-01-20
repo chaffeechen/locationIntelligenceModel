@@ -287,7 +287,11 @@ def main():
             for ind_city, str_city in enumerate(cityname):
                 print('==> %s' % str_city )
                 pair_file = '%s_ww_loc_x_duns.csv' % citynameabbr[ind_city]
-                testing_pair = pd.read_csv(pjoin(MID_DATA_ROOT, pair_file), index_col=0)
+                pair_file_path = pjoin(MID_DATA_ROOT, pair_file)
+                if not os.path.isfile(pair_file_path):
+                    print('skipped')
+                    continue
+                testing_pair = pd.read_csv(pair_file_path, index_col=0)
                 predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
                                              df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                              shuffle=False)
