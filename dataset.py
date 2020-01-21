@@ -504,6 +504,7 @@ class TestDatasetLocationRSRB(Dataset):
         list_col = list(self._df_comp_feat.columns)
         list_col = [col for col in list_col if col not in self._not_cols]
         featA_comp = datA.merge(self._df_comp_feat, on='duns_number', how='left', suffixes=sfx)[list_col]
+        featA_comp = featA_comp.fillna(0)
 
         list_col = list(self._df_region_feat.columns)
         list_col = [col for col in list_col if col not in self._not_cols]

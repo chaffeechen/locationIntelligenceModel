@@ -177,7 +177,12 @@ def main():
             testing_pair['label'] = 0
             testing_pair = testing_pair[['duns_number', 'atlas_location_uuid','label']]
 
-            predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
+            if 'city' in df_comp_feat.columns:
+                sub_df_comp_feat = df_comp_feat.loc[df_comp_feat['city'] == cityname[ind_city]]
+            else:
+                sub_df_comp_feat = df_comp_feat
+
+            predict_loader = make_loader(df_comp_feat=sub_df_comp_feat, df_loc_feat=df_loc_feat,
                                          df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                          shuffle=False)
 
