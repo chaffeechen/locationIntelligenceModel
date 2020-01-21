@@ -171,9 +171,12 @@ def main():
             print('Operating %s...'%pred_save_name[ind_city])
             testing_pair_file = pjoin(MID_DATA_ROOT, pred_save_name[ind_city])
             if not os.path.isfile(testing_pair_file):
-                print('skipped')
+                print('skipped--1')
                 continue
             testing_pair = pd.read_csv(testing_pair_file)[['atlas_location_uuid', 'duns_number']]
+            if len(testing_pair) == 0:
+                print('skipped--2')
+                continue
             testing_pair['label'] = 0
             testing_pair = testing_pair[['duns_number', 'atlas_location_uuid','label']]
 
