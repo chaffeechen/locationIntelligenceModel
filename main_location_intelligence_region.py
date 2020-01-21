@@ -289,9 +289,12 @@ def main():
                 pair_file = '%s_ww_loc_x_duns.csv' % citynameabbr[ind_city]
                 pair_file_path = pjoin(MID_DATA_ROOT, pair_file)
                 if not os.path.isfile(pair_file_path):
-                    print('skipped')
+                    print('skipped--1')
                     continue
                 testing_pair = pd.read_csv(pair_file_path, index_col=0)
+                if len(testing_pair) == 0:
+                    print('skipped--2')
+                    continue
                 predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
                                              df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                              shuffle=False)
