@@ -70,7 +70,7 @@ def main():
     arg('--batch-size', type=int, default=1)
     arg('--step', type=str, default=8)  # update the gradients every 8 batch(sample num = step*batch-size*inner_size)
     arg('--workers', type=int, default=16)
-    arg('--lr', type=float, default=3e-4)
+    arg('--lr', type=float, default=0.01)
     arg('--patience', type=int, default=4)
     arg('--clean', action='store_true')
     arg('--n-epochs', type=int, default=80)
