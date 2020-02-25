@@ -50,7 +50,7 @@ nPosTr = 1000
 nNegTr = 2000
 
 model_name = ''  # same as main cmd --model XXX
-wework_location_only = True
+wework_location_only = False
 
 
 # =============================================================================================================================
