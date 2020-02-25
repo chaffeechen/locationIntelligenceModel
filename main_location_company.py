@@ -381,7 +381,10 @@ def main():
         """
         for ind_city in [0, 1, 2, 3, 4]:
             pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
-            pdc = pdcl[['duns_number','atlas_location_uuid']].drop_duplicates('duns_number')
+
+            df_valid_pair_city = df_valid_pair[df_valid_pair['city'] == ind_city]
+            pdc = df_valid_pair_city[['duns_number']].drop_duplicates('duns_number')
+            pdc = pdc.merge(pdcl,on='duns_number')
 
             all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
                 ['atlas_location_uuid']].first().reset_index(drop=True)
