@@ -40,8 +40,8 @@ from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_sco
 
 pjoin = os.path.join
 # not used @this version
-TR_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
-TT_DATA_ROOT = '/home/ubuntu/location_recommender_system/'
+TR_DATA_ROOT = '/home/ubuntu/training_data/'
+TT_DATA_ROOT = '/home/ubuntu/training_data/'
 
 OLD_N_CLASSES = 2
 N_CLASSES = 2  # 253#109
@@ -61,10 +61,10 @@ def main():
     parser = argparse.ArgumentParser()
     arg = parser.add_argument
     arg('--mode', choices=['train', 'validate', 'predict_valid', 'predict_test', 'train_test', 'predict_sub',
-                           'predict_salesforce'], default='train')
-    arg('--run_root', default='result/location_company')
+                           'predict_salesforce'], default='predict_test')
+    arg('--run_root', default='result/location_recommend_model_v6_5city_191113')
     arg('--fold', type=int, default=0)
-    arg('--model', default='location_recommend_model_v3')
+    arg('--model', default='location_recommend_model_v6')
     arg('--ckpt', type=str, default='model_loss_best.pt')
     arg('--pretrained', type=str, default='imagenet')  # resnet 1, resnext imagenet
     arg('--batch-size', type=int, default=1)
@@ -381,10 +381,8 @@ def main():
         """
         for ind_city in [0, 1, 2, 3, 4]:
             pdcl = pd.read_csv(pjoin(TR_DATA_ROOT, clfile[ind_city]))[['atlas_location_uuid', 'duns_number']]
-            pdc = pd.read_csv(pjoin(TR_DATA_ROOT, cfile[ind_city]))[['duns_number']]
-            pdc['atlas_location_uuid'] = 'a'
-            # in case of multi-mapping
-            # pdcl = pdcl.groupby('atlas_location_uuid').first().reset_index()
+            pdc = pdcl[['duns_number','atlas_location_uuid']].drop_duplicates('duns_number')
+
             all_loc_name = pdcl[['atlas_location_uuid']].groupby(['atlas_location_uuid'])[
                 ['atlas_location_uuid']].first().reset_index(drop=True)
 
@@ -411,16 +409,13 @@ def main():
                                        emb_dict=loc_name_dict, df_ensemble=df_ensemble, name='valid', shuffle=False)
             print('Predictions for city %d' % ind_city)
 
-            if wework_location_only:
-                pre_name = 'ww_'
-            else:
-                pre_name = ''
+            pre_name = ''
 
             sampling = True if not args.all else False
             predict(model, criterion, tqdm.tqdm(valid_loader, desc='Validation'),
                     use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
                     pre_name=pre_name, \
-                    save_name=pred_save_name[ind_city], lossType=lossType,sampling=sampling)
+                    save_name=pred_save_name[ind_city], lossType=lossType,sampling=sampling,title_name='ROC_'+cityname[ind_city])
 
     elif args.mode == 'predict_salesforce':
         """
@@ -492,7 +487,7 @@ def main():
 # #=============================================================================================================================
 def predict(
         model: nn.Module, criterion, predict_loader, use_cuda, test_pair, save_name: str, pre_name: str = '', topk=300,
-        query_loc_flag=True, lossType='softmax', sampling=True) -> Dict[str, float]:
+        query_loc_flag=True, lossType='softmax', sampling=True, title_name='None') -> Dict[str, float]:
     model.eval()
     all_losses, all_predictions, all_targets = [], [], []
     with torch.no_grad():
@@ -532,6 +527,14 @@ def predict(
         all_predictions = (all_predictions + 1) / 2  # squeeze to [0,1]
         all_predictions2 = all_predictions.data.cpu().numpy()
 
+    all_targets = all_targets.data.cpu().numpy()
+
+    # save_obj(all_targets,'all_targets')
+    # save_obj(all_predictions2,'all_predictions2')
+    fpr, tpr, roc_thresholds = roc_curve(all_targets, all_predictions2)
+    roc_auc = auc(fpr, tpr)
+    draw_auc_roc(fpr,tpr,roc_auc,title_name=title_name)
+
     print('saving...')
     dat_pred_pd = pd.DataFrame(data=all_predictions2.reshape(-1, 1), columns=['similarity'])
     res_pd = pd.concat([test_pair, dat_pred_pd], axis=1)
@@ -557,7 +560,7 @@ def predict(
         print('saving total data...')
         res_pd.to_csv(pjoin(TR_DATA_ROOT, 'all_' + pre_name + save_name))
 
-    roc_auc = 0
+    # roc_auc = 0
 
     metrics = {}
     metrics['valid_f1'] = 0  # fbeta_score(all_targets, all_predictions, beta=1, average='macro')
@@ -834,6 +837,23 @@ def validation(
     print(' | '.join(['%s %1.3f' % (k, v) for k, v in sorted(metrics.items(), key=lambda kv: -kv[1])]))
 
     return metrics
+
+def draw_auc_roc(fpr,tpr,roc_auc,title_name):
+    plt.figure()
+    lw = 2
+    plt.plot(fpr, tpr, color='darkorange',
+             lw=lw, label='ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0, 1], [0, 1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.grid()
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title(title_name)
+    plt.legend(loc="lower right")
+    plt.savefig(title_name+'.jpg')
+    # plt.show()
+    plt.close()
 
 
 def _reduce_loss(loss):
