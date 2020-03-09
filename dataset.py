@@ -11,7 +11,7 @@ from torchvision.transforms import (
     ToTensor, Normalize, Compose, Resize, CenterCrop, RandomCrop,
     RandomHorizontalFlip)
 import math
-from udf.basic import timer
+from udf.basic import timer,load_obj,save_obj
 
 # image_size = 256
 

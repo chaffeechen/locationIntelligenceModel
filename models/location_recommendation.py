@@ -423,6 +423,61 @@ class RegionModelv5(nn.Module):
         for param in self.parameters():
             param.requires_grad = False
 
+class RegionModelv5_regression(nn.Module):
+    """
+    location id embedding is replaced by region model
+    others remain same as Deep and Wide
+    additional loss based on the idea that embedded vector should contain infor abt the location itself
+    region model part is accelerated by using setLinearLayer_fast
+    fast version of RegionModelv4
+    """
+
+    def __init__(self, feat_comp_dim=102, feat_loc_dim=23):
+        """
+        netEmb --> netReg --> netDecoder --> outputs
+                        |---> netAtt --> weight of outputs
+        :param feat_comp_dim: 
+        :param feat_loc_dim: 
+        """
+        super().__init__()
+        self.emb_feat_comp_dim = 64
+        self.feat_region_dim = 64
+
+        self.netEmb = companyMLP(fid=feat_comp_dim, fod=self.emb_feat_comp_dim)
+        self.netReg = setLinearLayer_fast(fin=self.emb_feat_comp_dim, fout=self.feat_region_dim,type='maxpool')
+        self.netDecoder = nn.Sequential(
+            nn.Linear(in_features=self.feat_region_dim, out_features=feat_loc_dim),
+        )
+
+        self.netAtt = nn.Sequential(
+            nn.Linear(in_features=self.feat_region_dim,out_features=self.feat_loc_dim),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, feat_K_comp):
+        emb_feat_K_comp = self.netEmb(feat_K_comp)
+        region_feat_comp_org = self.netReg(feat_set=emb_feat_K_comp)
+        explicit_feat_loc = self.netDecoder(region_feat_comp_org)
+        attention_feat_loc = self.netAtt(region_feat_comp_org)
+
+        return {
+            'outputs_attention': attention_feat_loc,
+            'feat_region_org': region_feat_comp_org,
+            'outputs': explicit_feat_loc
+        }
+
+    def predict(self,feat_region):
+        explicit_feat_loc = self.netDecoder(feat_region)
+        attention_feat_loc = self.netAtt(feat_region)
+
+        return {
+            'outputs_attention':attention_feat_loc,
+            'outputs':explicit_feat_loc
+        }
+
+    def freeze(self):
+        for param in self.parameters():
+            param.requires_grad = False
 
 class NaiveLR(nn.Module):
     """
