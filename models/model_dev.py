@@ -160,6 +160,38 @@ class mi_price_likelihood_v2(nn.Module):
         price_parameter[:,1] = price_parameter[:, 1].abs()
         return price_parameter
 
+    def predict_v2(self, feat_user, feat_loc):
+        """
+        Replace logical operation by matrix product.
+        """
+        feat_attention = self.user_net(feat_user)  # [B,K]
+
+        _, max_id = torch.max(feat_attention, dim=1, keepdim=True)  # [B,1],[B,1]
+
+        dum_max_id = idx_2_one_hot(max_id, self.K, use_cuda=use_cuda)  # [B,K]
+
+        dum_max_id = dum_max_id.unsqueeze(dim=1)  # [B,1,K]
+
+        # BGFX
+        b_theta = self.theta.expand(dum_max_id.shape[0], -1, -1, -1)  # [K,2,input_dim]-> [B,K,2,loc_dim+1]
+
+        # [B,K,2,loc_dim+1] -> [2,B,K,loc_dim+1]
+        b_theta = b_theta.permute(2, 0, 1, 3)
+
+        price_regression_parameter = dum_max_id @ b_theta  # [B,1,K]x[2,B,K,loc_dim+1]--> [2,B,1,loc_dim+1]
+        price_regression_parameter = price_regression_parameter.squeeze().permute(1, 0,
+                                                                                  2)  # [2,B,loc_dim+1]->[B,2,loc_dim+1]
+
+        one_mat = torch.ones(feat_loc.shape[0], 1)
+        aug_feat_loc = torch.cat([feat_loc, one_mat], dim=1)  # [B,loc_dim+1]
+        print('aug_shape:', aug_feat_loc.shape)
+
+        price_parameter = price_regression_parameter @ aug_feat_loc.unsqueeze(
+            dim=2)  # [B,2,loc_dim+1] @ [B,loc_dim+1,1] = [B,2,1]
+        price_parameter = price_parameter.squeeze()  # [B,2]
+        price_parameter[:, 1] = price_parameter[:, 1].abs()
+        return price_parameter
+
 class mi_price_regression_v1(nn.Module):
     """
     price = f(U)'g(L)
