@@ -124,7 +124,7 @@ class mi_price_likelihood_v2(nn.Module):
         ln_delta = delta.log().reshape(-1, 1)  # [B,1]
         p_minus_mu = torch.pow(mu - feat_price, 2)  # [B,1]
 
-        p_minus_mu_div_delta = p_minus_mu / delta.pow(2) / 2  # [B,1]
+        p_minus_mu_div_delta = p_minus_mu / (delta.pow(2)*2 + 1e-4 )  # [B,1]
 
         loss = ln_delta.sum() - p_minus_mu_div_delta.sum()
 
@@ -157,7 +157,7 @@ class mi_price_likelihood_v2(nn.Module):
 
         price_parameter = price_regression_parameter @ aug_feat_loc.unsqueeze(dim=2) # [B,2,loc_dim+1] @ [B,loc_dim+1,1] = [B,2,1]
         price_parameter = price_parameter.squeeze()  # [B,2]
-        price_parameter[:,1] = price_parameter[:, 1].abs()
+        price_parameter[:,1] = price_parameter[:, 1]
         return price_parameter
 
     def predict_v2(self, feat_user, feat_loc):
@@ -189,7 +189,7 @@ class mi_price_likelihood_v2(nn.Module):
         price_parameter = price_regression_parameter @ aug_feat_loc.unsqueeze(
             dim=2)  # [B,2,loc_dim+1] @ [B,loc_dim+1,1] = [B,2,1]
         price_parameter = price_parameter.squeeze()  # [B,2]
-        price_parameter[:, 1] = price_parameter[:, 1].abs()
+        price_parameter[:, 1] = price_parameter[:, 1]
         return price_parameter
 
 class mi_price_regression_v1(nn.Module):
