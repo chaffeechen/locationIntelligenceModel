@@ -27,6 +27,7 @@ from utils import (write_event, load_model, ThreadingDataLoader as DataLoader, a
                    ON_KAGGLE)
 
 from models.utils import *
+from math import *
 from header import *
 from udf.basic import save_obj, load_obj, calc_topk_acc_cat_all, topk_recall_score_all
 import matplotlib.pyplot as plt
@@ -85,6 +86,7 @@ def main():
     arg('--dbname',default='tmp_table')
     arg('--airflow', action='store_true')
     arg('--addition', action='store_true', help='using features with addition')
+    arg('--new_account',action='store_true',help='using duns without salesforce account')
 
     # cuda version T/F
     use_cuda = cuda.is_available()
@@ -110,7 +112,6 @@ def main():
         c_salesforce_file = 'salesforce_comp_city_from_opp.csv'
 
 
-
     if args.addition:
         dataloader = data_process(root_path = args.data_path)
         table_name = 'dnb_city_list%s' % args.apps
@@ -128,7 +129,10 @@ def main():
     lfile = args.lscard #'location_scorecard_191113.csv'
 
     clfile = [c + args.apps for c in citynameabbr]
-    pred_save_name = [c + '_similarity' + args.apps for c in citynameabbr]
+    if not args.new_account:
+        pred_save_name = [c + '_similarity' + args.apps for c in citynameabbr]
+    else:
+        pred_save_name = [c + '_similarity_new_account' + args.apps for c in citynameabbr]
 
     ##::DataLoader
     if args.mode in ['train', 'validate']:
@@ -286,7 +290,10 @@ def main():
         else:
             for ind_city, str_city in enumerate(cityname):
                 print('==> %s' % str_city )
-                pair_file = '%s_ww_loc_x_duns.csv' % citynameabbr[ind_city]
+                if not args.new_account:
+                    pair_file = '%s_ww_loc_x_duns.csv' % citynameabbr[ind_city]
+                else:
+                    pair_file = '%s_ww_loc_x_duns_new_account.csv' % citynameabbr[ind_city]
                 pair_file_path = pjoin(MID_DATA_ROOT, pair_file)
                 if not os.path.isfile(pair_file_path):
                     print('skipped--1')
@@ -298,18 +305,32 @@ def main():
                 predict_loader = make_loader(df_comp_feat=df_comp_feat, df_loc_feat=df_loc_feat,
                                              df_region_feat=df_region_feat, df_pair=testing_pair, name='predict',
                                              shuffle=False)
-
-                print('Predictions for city %s' % str_city)
-                pre_name = 'ww_'
-                sampling = False
-                predict(args=args, model=model, criterion=criterion,
-                        predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
-                        use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
-                        pre_name=pre_name, \
-                        save_name=pred_save_name[ind_city], query_loc_flag=args.query_location, sampling=sampling,
-                        topk=0)
-
-
+                if not args.new_account:
+                    print('Predictions for city %s' % str_city)
+                    pre_name = 'ww_'
+                    sampling = False
+                    predict(args=args, model=model, criterion=criterion,
+                            predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
+                            use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
+                            pre_name=pre_name, \
+                            save_name=pred_save_name[ind_city], query_loc_flag=args.query_location, sampling=sampling,
+                            topk=0)
+                else:
+                    print('Predictions for city %s with new accounts' % str_city)
+                    pre_name = 'ww_'
+                    sampling = True
+                    if args.query_location:
+                        comp_num = len(testing_pair.drop_duplicates('duns_number'))
+                        topk = min(1000,comp_num)
+                    else:
+                        loc_num = len(testing_pair.drop_duplicates('atlas_location_uuid'))
+                        topk = ceil(0.2*loc_num)
+                    predict(args=args, model=model, criterion=criterion,
+                            predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
+                            use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
+                            pre_name=pre_name, \
+                            save_name=pred_save_name[ind_city], query_loc_flag=args.query_location, sampling=sampling,
+                            topk=topk)
 
 # =============================================================================================================================
 # End of main
