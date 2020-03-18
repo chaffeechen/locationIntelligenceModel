@@ -324,7 +324,7 @@ def main():
                         topk = min(1000,comp_num)
                     else:
                         loc_num = len(testing_pair.drop_duplicates('atlas_location_uuid'))
-                        topk = ceil(0.2*loc_num)
+                        topk = min( max(ceil(0.2*loc_num),10) , loc_num)
                     predict(args=args, model=model, criterion=criterion,
                             predict_loader=tqdm.tqdm(predict_loader, desc='Prediction'),
                             use_cuda=use_cuda, test_pair=testing_pair[['atlas_location_uuid', 'duns_number']],
